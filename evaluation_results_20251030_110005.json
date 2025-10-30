@@ -1,0 +1,602 @@
+[
+  {
+    "case_name": "case_1",
+    "description": "Schedule Date: Tomorrow 10am PST\n\nTarget Audience: Customers who have engaged with us in the past 30 days and haven't made a purchase during that period\n\nMessage Content:\n- Offer: 10% off sitewide\n- Include store link for browsing\n\nCall-to-Action: \"Need ideas? Reply 'SAVE' to apply your discount or see some picks I chose just for you.\"\n\nAdd a \"save\" reply event to this initial message that connects to a latest cart purchase offer.",
+    "status_code": 201,
+    "response_time_ms": 46433.36,
+    "timestamp": "2025-10-30T10:58:23.994048",
+    "success": true,
+    "campaign_id": "8c69a749-c5f9-4272-8f5c-b99fd9a46d32",
+    "total_steps": 0,
+    "step_types": [],
+    "validation": {},
+    "metadata": {},
+    "full_response": {
+      "campaign_id": "8c69a749-c5f9-4272-8f5c-b99fd9a46d32",
+      "campaign_json": {
+        "initialStepID": "step_001",
+        "steps": [
+          {
+            "id": "step_001",
+            "type": "message",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_001",
+                "type": "reply",
+                "intent": "save",
+                "description": "Customer responds with 'SAVE'",
+                "nextStepID": "step_002",
+                "active": true,
+                "parameters": {}
+              },
+              {
+                "id": "event_002",
+                "type": "noreply",
+                "nextStepID": "step_003",
+                "after": {
+                  "value": 6,
+                  "unit": "hours"
+                },
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "text": "Hello {{customer.first_name}}! Discover exciting offers at {{merchant.name}}. Visit us now at {{merchant.url}} and explore what’s waiting for you!",
+            "addImage": false,
+            "sendContactCard": false,
+            "discountType": "none",
+            "handled": false,
+            "aiGenerated": true,
+            "content": "Hello {{customer.first_name}}! Discover exciting offers at {{merchant.name}}. Visit us now at {{merchant.url}} and explore what’s waiting for you!",
+            "discountValue": "",
+            "discountCode": "",
+            "discountEmail": "",
+            "discountExpiry": ""
+          },
+          {
+            "id": "step_002",
+            "type": "purchase_offer",
+            "label": "Latest Cart Offer",
+            "content": "Enjoy 10% off your next purchase at test_merchant_case_1! Use code {{discount.code}} at checkout. Shop now: {{merchant.url}}. Limited time offer!",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_003",
+                "type": "default",
+                "nextStepID": "step_004",
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "messageType": "standard",
+            "messageText": "Enjoy 10% off your next purchase at test_merchant_case_1! Use code {{discount.code}} at checkout. Shop now: {{merchant.url}}. Limited time offer!",
+            "cartSource": "latest_cart",
+            "products": [],
+            "discount": true,
+            "discountType": "percentage",
+            "discountPercentage": "10",
+            "discountAmount": "",
+            "discountCode": "",
+            "discountAmountLabel": "",
+            "discountEmail": "",
+            "discountExpiry": false,
+            "discountExpiryDate": "",
+            "customTotals": false,
+            "shippingAmount": "",
+            "includeProductImage": true,
+            "skipForRecentOrders": true,
+            "purchaseOfferConfig": {},
+            "fullText": "Enjoy 10% off your next purchase at test_merchant_case_1! Use code {{discount.code}} at checkout. Shop now: {{merchant.url}}. Limited time offer!",
+            "minimumDiscount": {
+              "type": "percentage",
+              "value": 10
+            },
+            "minimumDiscountGlobal": false,
+            "scheduleReminder": true,
+            "allowSubscriptionUpsell": false,
+            "allowReminder": true
+          },
+          {
+            "id": "step_003",
+            "type": "delay",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_004",
+                "type": "default",
+                "nextStepID": "step_004",
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "time": "6",
+            "period": "Hours",
+            "delay": {
+              "value": "6",
+              "unit": "Hours"
+            },
+            "duration": {
+              "hours": 6
+            }
+          },
+          {
+            "id": "step_004",
+            "type": "message",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_005",
+                "type": "noreply",
+                "nextStepID": "step_005",
+                "after": {
+                  "value": 18,
+                  "unit": "hours"
+                },
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "text": "Hi {{customer.first_name}}! We have exciting new arrivals at {{merchant.name}} just for you. Check them out at {{merchant.url}} today!",
+            "addImage": false,
+            "sendContactCard": false,
+            "discountType": "none",
+            "handled": false,
+            "aiGenerated": true,
+            "content": "Hi {{customer.first_name}}! We have exciting new arrivals at {{merchant.name}} just for you. Check them out at {{merchant.url}} today!",
+            "discountValue": "",
+            "discountCode": "",
+            "discountEmail": "",
+            "discountExpiry": ""
+          },
+          {
+            "id": "step_005",
+            "type": "end",
+            "label": "End",
+            "active": true,
+            "parameters": {},
+            "events": [],
+            "reason": "Campaign completed",
+            "content": "End"
+          }
+        ]
+      },
+      "generation_metadata": {
+        "model_planning": "openai/gpt-4o",
+        "model_content": "openai/gpt-4o-mini",
+        "total_tokens": 5056,
+        "planning_tokens": 2444,
+        "generation_tokens": 2612,
+        "total_cost_usd": 0.011617,
+        "planning_cost_usd": 0.01118,
+        "generation_cost_usd": 0.000437,
+        "duration_seconds": 43.84,
+        "template_used": null,
+        "template_similarity": null,
+        "attempts": 1
+      },
+      "validation": {
+        "is_valid": true,
+        "issues": [],
+        "warnings": [
+          "Message step has no reply or click handler",
+          "Campaign has no opt-out instructions"
+        ],
+        "suggestions": []
+      },
+      "status": "ready"
+    }
+  },
+  {
+    "case_name": "case_2",
+    "description": "Schedule Date: Tomorrow 10am PST\n\nTarget Audience: Customers who have engaged with us in the past 30 days and haven't made a purchase during that period\n\nMessage Content:\n- Promote a specific product: [ insert product name ]\n- Include the product link for browsing [ insert product link here ]\n- Offer: 10% off\n\nCall-to-Action: \"Reply 'Buy' to order now or ask for suggestions.\"\n\nAdd a \"Buy\" reply event to this initial message that connects to a manual cart purchase offer for the provided product.",
+    "status_code": 201,
+    "response_time_ms": 46182.12,
+    "timestamp": "2025-10-30T10:59:12.176991",
+    "success": true,
+    "campaign_id": "9e8c7805-0499-4296-bd86-d083582fc2df",
+    "total_steps": 0,
+    "step_types": [],
+    "validation": {},
+    "metadata": {},
+    "full_response": {
+      "campaign_id": "9e8c7805-0499-4296-bd86-d083582fc2df",
+      "campaign_json": {
+        "initialStepID": "schedule_001",
+        "steps": [
+          {
+            "id": "schedule_001",
+            "type": "schedule",
+            "label": "Tomorrow 10am PST",
+            "content": "Tomorrow 10am PST",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "evt_scheduled",
+                "type": "default",
+                "nextStepID": "step_001",
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "schedule": {}
+          },
+          {
+            "id": "step_001",
+            "type": "message",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_001",
+                "type": "reply",
+                "intent": "buy",
+                "description": "Customer wants to buy the product",
+                "nextStepID": "step_002",
+                "active": true,
+                "parameters": {}
+              },
+              {
+                "id": "event_002",
+                "type": "noreply",
+                "nextStepID": "step_003",
+                "after": {
+                  "value": 6,
+                  "unit": "hours"
+                },
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "text": "Hi {{customer.first_name}}, we miss you at {{merchant.name}}! Check out what’s new at {{merchant.url}}. Your next favorite find awaits!",
+            "addImage": false,
+            "sendContactCard": false,
+            "discountType": "none",
+            "handled": false,
+            "aiGenerated": true,
+            "content": "Hi {{customer.first_name}}, we miss you at {{merchant.name}}! Check out what’s new at {{merchant.url}}. Your next favorite find awaits!",
+            "discountValue": "",
+            "discountCode": "",
+            "discountEmail": "",
+            "discountExpiry": ""
+          },
+          {
+            "id": "step_002",
+            "type": "message",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_003",
+                "type": "reply",
+                "intent": "confirm_purchase",
+                "description": "Customer confirms purchase",
+                "nextStepID": "step_end",
+                "active": true,
+                "parameters": {}
+              },
+              {
+                "id": "event_004",
+                "type": "noreply",
+                "nextStepID": "step_end",
+                "after": {
+                  "value": 6,
+                  "unit": "hours"
+                },
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "text": "Hi {{customer.first_name}}, explore our latest arrivals at {{merchant.name}}! Your next favorite item could be just a click away: {{merchant.url}}.",
+            "addImage": false,
+            "sendContactCard": false,
+            "discountType": "none",
+            "handled": false,
+            "aiGenerated": true,
+            "content": "Hi {{customer.first_name}}, explore our latest arrivals at {{merchant.name}}! Your next favorite item could be just a click away: {{merchant.url}}.",
+            "discountValue": "",
+            "discountCode": "",
+            "discountEmail": "",
+            "discountExpiry": ""
+          },
+          {
+            "id": "step_003",
+            "type": "message",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_005",
+                "type": "reply",
+                "intent": "buy",
+                "description": "Customer wants to buy the product",
+                "nextStepID": "step_002",
+                "active": true,
+                "parameters": {}
+              },
+              {
+                "id": "event_006",
+                "type": "noreply",
+                "nextStepID": "step_end",
+                "after": {
+                  "value": 12,
+                  "unit": "hours"
+                },
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "text": "Hi {{customer.first_name}}, great news! We have exclusive items just for you at {{merchant.name}}. Discover your next favorite at {{merchant.url}} today!",
+            "addImage": false,
+            "sendContactCard": false,
+            "discountType": "none",
+            "handled": false,
+            "aiGenerated": true,
+            "content": "Hi {{customer.first_name}}, great news! We have exclusive items just for you at {{merchant.name}}. Discover your next favorite at {{merchant.url}} today!",
+            "discountValue": "",
+            "discountCode": "",
+            "discountEmail": "",
+            "discountExpiry": ""
+          },
+          {
+            "id": "step_end",
+            "type": "end",
+            "label": "End",
+            "active": true,
+            "parameters": {},
+            "events": [],
+            "reason": "Campaign completed",
+            "content": "End"
+          }
+        ]
+      },
+      "generation_metadata": {
+        "model_planning": "openai/gpt-4o",
+        "model_content": "openai/gpt-4o-mini",
+        "total_tokens": 5706,
+        "planning_tokens": 2504,
+        "generation_tokens": 3202,
+        "total_cost_usd": 0.012229,
+        "planning_cost_usd": 0.011705,
+        "generation_cost_usd": 0.000524,
+        "duration_seconds": 43.39,
+        "template_used": null,
+        "template_similarity": null,
+        "attempts": 1
+      },
+      "validation": {
+        "is_valid": true,
+        "issues": [],
+        "warnings": [
+          "Multiple messages without delays may overwhelm recipients",
+          "Campaign has no opt-out instructions"
+        ],
+        "suggestions": []
+      },
+      "status": "ready"
+    }
+  },
+  {
+    "case_name": "case_3",
+    "description": "Schedule Date: Tomorrow 10am PST\n\nTarget Audience: Customer has added to cart in last 90 days\n    or has started a checkout in last 90 days\n    and has placed an order 0 times in last 90 days\n    and has NOT added to cart in last 3 days\n    and has NOT started a checkout in last 3 days\n\nMessage Content:\n- Initial step should be a Purchase Offer with this copy:\n\"Your favorites are going fast. ✨\n\nHere's what's caught your eye before:\n{{cart.list}}\n\nReply BUY and I'll help you make these items yours{{#if discount}} with your {{discount.label}}{{/if}}.\n\nWant to finalize online? Order here: {{checkout.link}}\"",
+    "status_code": 201,
+    "response_time_ms": 48987.97,
+    "timestamp": "2025-10-30T11:00:03.166954",
+    "success": true,
+    "campaign_id": "df537d2e-0680-45d8-a3d4-5471c4337b19",
+    "total_steps": 0,
+    "step_types": [],
+    "validation": {},
+    "metadata": {},
+    "full_response": {
+      "campaign_id": "df537d2e-0680-45d8-a3d4-5471c4337b19",
+      "campaign_json": {
+        "initialStepID": "step_001",
+        "steps": [
+          {
+            "id": "step_001",
+            "type": "message",
+            "content": "Purchase",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_001",
+                "type": "reply",
+                "intent": "buy",
+                "description": "Customer wants to buy",
+                "nextStepID": "step_002",
+                "active": true,
+                "parameters": {}
+              },
+              {
+                "id": "event_002",
+                "type": "noreply",
+                "nextStepID": "step_003",
+                "after": {
+                  "value": 6,
+                  "unit": "hours"
+                },
+                "active": true,
+                "parameters": {}
+              },
+              {
+                "id": "evt_trigger_your favorites are going fast. ✨\n\nhere's what's caught your eye before:\n{{cart.list}}\n\nreply buy and i'll help you make these items yours{{#if discount}} with your {{discount.label}}{{/if}}.\n\nwant to finalize online? order here: {{checkout.link}}",
+                "type": "reply",
+                "intent": "your favorites are going fast. ✨\n\nhere's what's caught your eye before:\n{{cart.list}}\n\nreply buy and i'll help you make these items yours{{#if discount}} with your {{discount.label}}{{/if}}.\n\nwant to finalize online? order here: {{checkout.link}}",
+                "nextStepID": "step_001",
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "text": "Purchase",
+            "addImage": false,
+            "sendContactCard": false,
+            "discountType": "none",
+            "handled": false,
+            "aiGenerated": true,
+            "discountValue": "",
+            "discountCode": "",
+            "discountEmail": "",
+            "discountExpiry": ""
+          },
+          {
+            "id": "step_002",
+            "type": "purchase_offer",
+            "label": "Purchase Flow",
+            "content": "Enjoy 10% off your next purchase at test_merchant_case_3! Use code {{discount.code}} at checkout. Shop now: {{merchant.url}}. Hurry, limited time only!",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_003",
+                "type": "default",
+                "nextStepID": "step_end",
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "messageType": "standard",
+            "messageText": "Enjoy 10% off your next purchase at test_merchant_case_3! Use code {{discount.code}} at checkout. Shop now: {{merchant.url}}. Hurry, limited time only!",
+            "cartSource": "latest_cart",
+            "products": [],
+            "discount": true,
+            "discountType": "percentage",
+            "discountPercentage": "10",
+            "discountAmount": "",
+            "discountCode": "",
+            "discountAmountLabel": "",
+            "discountEmail": "",
+            "discountExpiry": false,
+            "discountExpiryDate": "",
+            "customTotals": false,
+            "shippingAmount": "",
+            "includeProductImage": true,
+            "skipForRecentOrders": true,
+            "purchaseOfferConfig": {},
+            "fullText": "Enjoy 10% off your next purchase at test_merchant_case_3! Use code {{discount.code}} at checkout. Shop now: {{merchant.url}}. Hurry, limited time only!",
+            "minimumDiscount": {
+              "type": "percentage",
+              "value": 10
+            },
+            "minimumDiscountGlobal": false,
+            "scheduleReminder": true,
+            "allowSubscriptionUpsell": false,
+            "allowReminder": true
+          },
+          {
+            "id": "step_003",
+            "type": "delay",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_004",
+                "type": "default",
+                "nextStepID": "step_004",
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "time": "6",
+            "period": "Hours",
+            "delay": {
+              "value": "6",
+              "unit": "Hours"
+            },
+            "duration": {
+              "hours": 6
+            }
+          },
+          {
+            "id": "step_004",
+            "type": "message",
+            "content": "Purchase",
+            "active": true,
+            "parameters": {},
+            "events": [
+              {
+                "id": "event_005",
+                "type": "reply",
+                "intent": "buy",
+                "description": "Customer wants to buy",
+                "nextStepID": "step_002",
+                "active": true,
+                "parameters": {}
+              },
+              {
+                "id": "event_006",
+                "type": "noreply",
+                "nextStepID": "step_end",
+                "after": {
+                  "value": 6,
+                  "unit": "hours"
+                },
+                "active": true,
+                "parameters": {}
+              },
+              {
+                "id": "evt_trigger_your favorites are going fast. ✨\n\nhere's what's caught your eye before:\n{{cart.list}}\n\nreply buy and i'll help you make these items yours{{#if discount}} with your {{discount.label}}{{/if}}.\n\nwant to finalize online? order here: {{checkout.link}}",
+                "type": "reply",
+                "intent": "your favorites are going fast. ✨\n\nhere's what's caught your eye before:\n{{cart.list}}\n\nreply buy and i'll help you make these items yours{{#if discount}} with your {{discount.label}}{{/if}}.\n\nwant to finalize online? order here: {{checkout.link}}",
+                "nextStepID": "step_004",
+                "active": true,
+                "parameters": {}
+              }
+            ],
+            "text": "Purchase",
+            "addImage": false,
+            "sendContactCard": false,
+            "discountType": "none",
+            "handled": false,
+            "aiGenerated": true,
+            "discountValue": "",
+            "discountCode": "",
+            "discountEmail": "",
+            "discountExpiry": ""
+          },
+          {
+            "id": "step_end",
+            "type": "end",
+            "label": "End",
+            "active": true,
+            "parameters": {},
+            "events": [],
+            "reason": "Campaign completed",
+            "content": "End"
+          }
+        ]
+      },
+      "generation_metadata": {
+        "model_planning": "openai/gpt-4o",
+        "model_content": "openai/gpt-4o-mini",
+        "total_tokens": 5067,
+        "planning_tokens": 2450,
+        "generation_tokens": 2617,
+        "total_cost_usd": 0.011305,
+        "planning_cost_usd": 0.010865,
+        "generation_cost_usd": 0.00044,
+        "duration_seconds": 46.42,
+        "template_used": null,
+        "template_similarity": null,
+        "attempts": 1
+      },
+      "validation": {
+        "is_valid": true,
+        "issues": [],
+        "warnings": [
+          "Message doesn't identify brand/merchant",
+          "Message doesn't identify brand/merchant",
+          "Campaign has no opt-out instructions"
+        ],
+        "suggestions": []
+      },
+      "status": "ready"
+    }
+  }
+]
