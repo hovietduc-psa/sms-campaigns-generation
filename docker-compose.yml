@@ -1,84 +1,102 @@
 version: '3.8'
 
 services:
-  # Main API service
-  api:
+  # Application service
+  app:
     build:
       context: .
+      dockerfile: Dockerfile
       target: development
+    container_name: sms-campaign-app
     ports:
       - "8000:8000"
     environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/sms_campaigns
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
       - DEBUG=true
-      - LOG_LEVEL=INFO
-    env_file:
-      - .env
+      - ENVIRONMENT=development
+      - LLM_PROVIDER=openrouter
+      - OPENROUTER_API_KEY=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
     volumes:
-      - .:/app
+      - ./src:/app/src
+      - ./logs:/app/logs
     depends_on:
-      - qdrant
+      - db
+      - redis
+    networks:
+      - sms-campaign-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # Qdrant vector database for templates
-  qdrant:
-    image: qdrant/qdrant:v1.15.0
-    ports:
-      - "6333:6333"  # HTTP API
-      - "6334:6334"  # gRPC API
-    volumes:
-      - qdrant_data:/qdrant/storage
+  # PostgreSQL database
+  db:
+    image: postgres:15-alpine
+    container_name: sms-campaign-db
     environment:
-      - QDRANT__SERVICE__HTTP_PORT=6333
-      - QDRANT__SERVICE__GRPC_PORT=6334
+      - POSTGRES_DB=sms_campaigns
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - sms-campaign-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Optional: PostgreSQL database (comment out if not needed)
-  # postgres:
-  #   image: postgres:15-alpine
-  #   environment:
-  #     POSTGRES_DB: campaigns_db
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: postgres
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: sms-campaign-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sms-campaign-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Optional: Redis for caching (comment out if not needed)
-  # redis:
-  #   image: redis:7-alpine
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis_data:/data
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  # Production app service
+  app-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: sms-campaign-app-prod
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/sms_campaigns
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=false
+      - ENVIRONMENT=production
+    depends_on:
+      - db
+      - redis
+    networks:
+      - sms-campaign-network
+    profiles:
+      - production
+    restart: unless-stopped
 
 volumes:
-  qdrant_data:
-  # postgres_data:
-  # redis_data:
+  postgres_data:
+  redis_data:
 
 networks:
-  default:
-    name: sms-campaign-network
+  sms-campaign-network:
+    driver: bridge

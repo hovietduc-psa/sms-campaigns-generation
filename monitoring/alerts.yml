@@ -1,0 +1,368 @@
+# Prometheus alerting rules for SMS Campaign Generation System
+groups:
+  - name: sms-campaigns-application
+    rules:
+      # Application Health Alerts
+      - alert: ApplicationDown
+        expr: up{job="sms-campaigns-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: sms-campaigns
+        annotations:
+          summary: "SMS Campaigns application is down"
+          description: "SMS Campaigns application has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5..", job="sms-campaigns-app"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: sms-campaigns
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for more than 5 minutes."
+
+      - alert: CriticalErrorRate
+        expr: rate(http_requests_total{status=~"5..", job="sms-campaigns-app"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: sms-campaigns
+        annotations:
+          summary: "Critical error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for more than 2 minutes."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="sms-campaigns-app"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: sms-campaigns
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for more than 5 minutes."
+
+      - alert: CriticalResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="sms-campaigns-app"}[5m])) > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: sms-campaigns
+        annotations:
+          summary: "Critical response time detected"
+          description: "95th percentile response time is {{ $value }}s for more than 2 minutes."
+
+      # Campaign Generation Specific Alerts
+      - alert: CampaignGenerationFailure
+        expr: rate(campaign_generation_failures_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: sms-campaigns
+        annotations:
+          summary: "High campaign generation failure rate"
+          description: "Campaign generation failure rate is {{ $value | humanizePercentage }} for more than 3 minutes."
+
+      - alert: LLMServiceDown
+        expr: up{job="llm-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: sms-campaigns
+        annotations:
+          summary: "LLM service is down"
+          description: "LLM service has been down for more than 1 minute."
+
+      - alert: LLMAPIHighLatency
+        expr: histogram_quantile(0.95, rate(llm_api_request_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: sms-campaigns
+        annotations:
+          summary: "LLM API high latency"
+          description: "LLM API 95th percentile latency is {{ $value }}s for more than 5 minutes."
+
+      - alert: LLMServiceErrorRate
+        expr: rate(llm_api_requests_failed_total[5m]) / rate(llm_api_requests_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: sms-campaigns
+        annotations:
+          summary: "High LLM service error rate"
+          description: "LLM service error rate is {{ $value | humanizePercentage }} for more than 3 minutes."
+
+  - name: sms-campaigns-infrastructure
+    rules:
+      # Database Alerts
+      - alert: DatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database has been down for more than 1 minute."
+
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High database connections"
+          description: "Database has {{ $value }} active connections (> 80)."
+
+      - alert: DatabaseConnectionsCritical
+        expr: pg_stat_activity_count > 150
+        for: 2m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Critical database connections"
+          description: "Database has {{ $value }} active connections (> 150)."
+
+      - alert: DatabaseSlowQueries
+        expr: rate(pg_stat_statements_mean_time_seconds{query =~ "(?i)(select|insert|update|delete)"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Average query time is {{ $value }}s for more than 5 minutes."
+
+      - alert: DatabaseDiskSpaceLow
+        expr: (pg_database_size_bytes / 1024 / 1024 / 1024) > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Database disk space usage high"
+          description: "Database size is {{ $value }}GB (> 80GB)."
+
+      - alert: DatabaseReplicationLag
+        expr: pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Database replication lag"
+          description: "Replication lag is {{ $value }}s for more than 5 minutes."
+
+      # Redis Alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute."
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          service: cache
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} for more than 5 minutes."
+
+      - alert: RedisMemoryWarning
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Redis memory usage warning"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} for more than 10 minutes."
+
+      - alert: RedisConnectionHigh
+        expr: redis_connected_clients > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "High Redis connections"
+          description: "Redis has {{ $value }} connected clients (> 100)."
+
+      - alert: RedisKeyExpirationRate
+        expr: rate(redis_expired_keys_total[5m]) > 10
+        for: 10m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "High Redis key expiration rate"
+          description: "Redis key expiration rate is {{ $value }} keys/second for more than 10 minutes."
+
+  - name: sms-campaigns-performance
+    rules:
+      # Resource Usage Alerts
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{name=~".*sms-campaigns.*"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }} for more than 5 minutes."
+
+      - alert: CriticalCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{name=~".*sms-campaigns.*"}[5m]) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          service: performance
+        annotations:
+          summary: "Critical CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }} for more than 2 minutes."
+
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes{name=~".*sms-campaigns.*"} / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} for more than 5 minutes."
+
+      - alert: CriticalMemoryUsage
+        expr: container_memory_usage_bytes{name=~".*sms-campaigns.*"} / container_spec_memory_limit_bytes > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          service: performance
+        annotations:
+          summary: "Critical memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} for more than 2 minutes."
+
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total{namespace="sms-campaigns"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "Pod is crash looping"
+          description: "Pod {{ $labels.pod }} is restarting frequently in namespace sms-campaigns."
+
+      - alert: PodNotReady
+        expr: kube_pod_status_ready{namespace="sms-campaigns"} == 0
+        for: 10m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "Pod not ready"
+          description: "Pod {{ $labels.pod }} in namespace sms-campaigns has been not ready for more than 10 minutes."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/", fstype!="rootfs"} / node_filesystem_size_bytes{mountpoint="/", fstype!="rootfs"}) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: performance
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is {{ $value | humanizePercentage }} available on {{ $labels.instance }}."
+
+      - alert: DiskSpaceWarning
+        expr: (node_filesystem_avail_bytes{mountpoint="/", fstype!="rootfs"} / node_filesystem_size_bytes{mountpoint="/", fstype!="rootfs"}) < 0.2
+        for: 10m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "Low disk space warning"
+          description: "Disk space is {{ $value | humanizePercentage }} available on {{ $labels.instance }}."
+
+  - name: sms-campaigns-security
+    rules:
+      # Security Alerts
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(http_requests_total{status="401", job="sms-campaigns-app"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High rate of unauthorized access attempts"
+          description: "Unauthorized access attempts rate is {{ $value }} per minute."
+
+      - alert: ForbiddenAccessAttempts
+        expr: rate(http_requests_total{status="403", job="sms-campaigns-app"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High rate of forbidden access attempts"
+          description: "Forbidden access attempts rate is {{ $value }} per minute."
+
+      - alert: RateLimitExceeded
+        expr: rate(http_requests_total{status="429", job="sms-campaigns-app"}[5m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High rate of rate limit exceeded"
+          description: "Rate limit exceeded rate is {{ $value }} per minute."
+
+      - alert: SuspiciousUserActivity
+        expr: rate(http_requests_total{job="sms-campaigns-app"}[5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "Suspicious high request rate"
+          description: "Request rate is {{ $value }} per minute from {{ $labels.client_ip }}."
+
+  - name: sms-campaigns-business
+    rules:
+      # Business Metrics Alerts
+      - alert: LowCampaignGenerationRate
+        expr: rate(campaign_generations_total[1h]) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Low campaign generation rate"
+          description: "Campaign generation rate is {{ $value }} per hour."
+
+      - alert: HighValidationFailureRate
+        expr: rate(validation_failures_total[5m]) / rate(validation_checks_total[5m]) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "High validation failure rate"
+          description: "Validation failure rate is {{ $value | humanizePercentage }} for more than 10 minutes."
+
+      - alert: ActiveUsersLow
+        expr: active_users_total < 10
+        for: 30m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Low active users"
+          description: "Active users count is {{ $value }} for more than 30 minutes."

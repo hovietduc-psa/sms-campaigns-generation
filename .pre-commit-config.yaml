@@ -1,0 +1,231 @@
+# Pre-commit hooks configuration for SMS Campaign Generation System
+# Install with: pre-commit install
+
+repos:
+  # Basic code formatting and linting
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        description: Remove trailing whitespace
+      - id: end-of-file-fixer
+        description: Ensure files end with newline
+      - id: check-yaml
+        description: Check YAML syntax
+      - id: check-json
+        description: Check JSON syntax
+      - id: check-toml
+        description: Check TOML syntax
+      - id: check-xml
+        description: Check XML syntax
+      - id: check-merge-conflict
+        description: Check for merge conflict markers
+      - id: check-case-conflict
+        description: Check for case conflicts
+      - id: check-added-large-files
+        description: Prevent large files from being committed
+        args: ['--maxkb=1000']
+      - id: check-ast
+        description: Check Python AST
+      - id: check-docstring-first
+        description: Check docstring placement
+      - id: debug-statements
+        description: Check for debug statements
+      - id: name-tests-test
+        description: Ensure test files are named correctly
+        args: [--pytest-test-first]
+
+  # Python code formatting with Black
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        description: Format Python code with Black
+        language_version: python3
+        args: [--line-length=88, --target-version=py311]
+
+  # Import sorting with isort
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        description: Sort imports with isort
+        args: [--profile=black, --line-length=88]
+
+  # Linting with flake8
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        description: Lint Python code with flake8
+        args:
+          - --max-line-length=88
+          - --extend-ignore=E203,W503,E501
+          - --max-complexity=10
+          - --select=BLE,B,C,E,F,W,T4,B9
+          - --exclude=__pycache__,.git,.venv,venv,.env,dist,build,*egg-info
+        additional_dependencies:
+          - flake8-bugbear
+          - flake8-comprehensions
+          - flake8-docstrings
+          - flake8-import-order
+          - flake8-simplify
+
+  # Type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        description: Type check with mypy
+        additional_dependencies:
+          - types-PyYAML
+          - types-requests
+          - types-python-dateutil
+        args:
+          - --ignore-missing-imports
+          - --no-strict-optional
+          - --warn-redundant-casts
+          - --warn-unused-ignores
+          - --disallow-untyped-defs
+          - --disallow-incomplete-defs
+          - --check-untyped-defs
+          - --disallow-untyped-decorators
+          - --no-implicit-optional
+          - --warn-return-any
+          - --warn-unused-configs
+          - --disallow-subclassing-any
+          - --disallow-any-generics
+          - --disallow-any-expr
+          - --disallow-any-explicit
+          - --disallow-any-unimported
+        exclude: |
+          (?x)^(
+              tests/.*|
+              conftest.py|
+              .*\.pb2\.py|
+              .*/migrations/.*
+          )$
+
+  # Security scanning with bandit
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.7.8
+    hooks:
+      - id: bandit
+        description: Security scan with bandit
+        args:
+          - -ll
+          - -iii
+          - -f json
+          - -o bandit-report.json
+        exclude: tests/
+
+  # Python dependency checking with safety
+  - repo: https://github.com/pyupio/safety
+    rev: 3.2.0
+    hooks:
+      - id: safety
+        description: Check for security vulnerabilities in dependencies
+        args: [--json, --output=safety-report.json]
+
+  # Dockerfile linting with hadolint
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        description: Lint Dockerfile with hadolint
+        args: [--ignore=DL3008, --ignore=DL3009, --ignore=SC2086]
+
+  # YAML linting with yamllint
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        description: Lint YAML files
+        args: [--format, parsable, -d, relaxed]
+
+  # JSON linting with jsonlint
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.28.0
+    hooks:
+      - id: check-github-workflows
+        description: Validate GitHub Actions workflow files
+      - id: check-jsonschema
+        description: Validate JSON schema files
+        files: ^.*\.json$
+        args: [--schemafile, src/schemas/flow-schema.json]
+
+  # Documentation linting with docformatter
+  - repo: https://github.com/myint/docformatter
+    rev: v1.7.5
+    hooks:
+      - id: docformatter
+        description: Format docstrings
+        args: [--in-place, --wrap-summaries=88, --wrap-descriptions=88]
+
+  # Python upgrade check with pyupgrade
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.15.2
+    hooks:
+      - id: pyupgrade
+        description: Upgrade Python syntax to newer versions
+        args: [--py311-plus]
+
+  # Remove unused imports with autoflake
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        description: Remove unused imports and variables
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --remove-duplicate-keys
+          - --ignore-init-module-imports
+
+  # Check for common mistakes
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.2
+    hooks:
+      - id: python-no-debug-warnings
+        description: Check for debug warnings in Python code
+      - id: python-check-mock-methods
+        description: Check for mock method issues
+      - id: python-safety-dependencies-check
+        description: Check for safety dependency issues
+
+  # Check for secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        description: Detect secrets in code
+        args: [--baseline, .secrets.baseline]
+        exclude: package-lock.json|\.env\..*|tests/.*
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.39.0
+    hooks:
+      - id: markdownlint
+        description: Lint Markdown files
+        args: [--fix]
+
+# Pre-commit configuration
+default_stages: [commit]
+fail_fast: false
+default_language_version:
+  python: python3.11
+
+# CI configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

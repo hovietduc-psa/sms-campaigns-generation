@@ -1,0 +1,43 @@
+# Kubernetes namespace for SMS Campaign Generation System
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sms-campaigns
+  labels:
+    name: sms-campaigns
+    environment: production
+    app: sms-campaigns-system
+---
+# Limit range to set default resource requests and limits
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: sms-campaigns-limits
+  namespace: sms-campaigns
+spec:
+  limits:
+  - default:
+      cpu: "500m"
+      memory: "512Mi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "128Mi"
+    type: Container
+---
+# Resource quota for the namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: sms-campaigns-quota
+  namespace: sms-campaigns
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    persistentvolumeclaims: "10"
+    pods: "20"
+    services: "10"
+    secrets: "10"
+    configmaps: "10"
