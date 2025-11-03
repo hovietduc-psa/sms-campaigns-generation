@@ -4,10 +4,13 @@ Campaign generation orchestrator.
 This module coordinates the entire campaign generation process, from initial
 request to final validated flow, including LLM integration, validation,
 and auto-correction.
+
+FIXED: Model reporting now uses self.llm_client.model instead of hardcoded settings.OPENAI_MODEL
 """
 
 import time
 import uuid
+import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 
@@ -19,6 +22,7 @@ from src.services.llm_engine.llm_client import get_llm_client
 from src.services.llm_engine.prompt_builder import get_prompt_builder
 from src.services.llm_engine.response_parser import get_response_parser
 from src.services.validation.validator import get_validator, ValidationConfig
+from src.services.database.campaign_logger import get_database_logger
 
 logger = get_logger(__name__)
 
@@ -104,12 +108,16 @@ class CampaignOrchestrator:
         else:
             llm_model = self.settings.OPENAI_MODEL
 
+        # Initialize database logger
+        self.db_logger = get_database_logger()
+
         logger.info(
             "Campaign orchestrator initialized",
             extra={
                 "llm_model": llm_model,
                 "validation_enabled": self.settings.ENABLE_FLOW_VALIDATION,
                 "auto_correction_enabled": self.settings.ENABLE_AUTO_CORRECTION,
+                "database_logging_enabled": self.db_logger.is_enabled(),
             }
         )
 
@@ -180,7 +188,7 @@ class CampaignOrchestrator:
                 extra={
                     "request_id": request_id,
                     "generation_time_ms": round(generation_time, 2),
-                    "model_used": self.settings.OPENAI_MODEL,
+                    "model_used": self.llm_client.model,
                 }
             )
 
@@ -268,7 +276,7 @@ class CampaignOrchestrator:
                     "complexity": complexity,
                     "priority": request.priority,
                     "maxLength": request.maxLength,
-                    "model_used": self.settings.OPENAI_MODEL,
+                    "model_used": self.llm_client.model,
                     "generation_time_ms": round(generation_time, 2),
                     "parsing_time_ms": round(parsing_time - generation_time, 2),
                     "validation_time_ms": round(validation_time, 2),
@@ -305,6 +313,26 @@ class CampaignOrchestrator:
                     }
                 )
 
+            # Log campaign to database asynchronously (non-blocking)
+            asyncio.create_task(
+                self.db_logger.log_campaign_generation(
+                    campaign_id=result.campaign_id,
+                    request_id=request_id,
+                    user_id=user_id,
+                    campaign_description=request.campaignDescription,
+                    generated_flow=result.flow_data,
+                    generation_time_ms=int(total_time),
+                    tokens_used=result.metadata.get("parse_metadata", {}).get("parsing_metadata", {}).get("tokens_used", 0),
+                    model_used=result.metadata.get("model_used", self.llm_client.model),
+                    status="success" if validation_summary.is_valid else "partial",
+                    error_message=None if validation_summary.is_valid else f"Validation issues: {validation_summary.error_count} errors, {validation_summary.warning_count} warnings",
+                    node_count=len(result.flow_data.get("steps", [])),
+                    validation_issues=validation_summary.total_issues,
+                    corrections_applied=validation_summary.corrections_applied,
+                    quality_score=validation_summary.quality_score if hasattr(validation_summary, 'quality_score') else None,
+                )
+            )
+
             return result
 
         except Exception as e:
@@ -321,7 +349,8 @@ class CampaignOrchestrator:
                 exc_info=True
             )
 
-            return CampaignGenerationResult(
+            # Log failed campaign to database asynchronously (non-blocking)
+            error_result = CampaignGenerationResult(
                 success=False,
                 errors=[f"Campaign generation failed: {str(e)}"],
                 metadata={
@@ -332,6 +361,30 @@ class CampaignOrchestrator:
                     "error_type": type(e).__name__,
                 }
             )
+
+            # Generate campaign ID for failed attempt
+            failed_campaign_id = f"failed_{request_id}_{int(time.time())}"
+
+            asyncio.create_task(
+                self.db_logger.log_campaign_generation(
+                    campaign_id=failed_campaign_id,
+                    request_id=request_id,
+                    user_id=user_id,
+                    campaign_description=request.campaignDescription,
+                    generated_flow={},  # Empty flow for failed attempts
+                    generation_time_ms=int(total_time),
+                    tokens_used=0,
+                    model_used=getattr(self.llm_client, 'model', 'unknown'),
+                    status="error",
+                    error_message=str(e),
+                    node_count=0,
+                    validation_issues=0,
+                    corrections_applied=0,
+                    quality_score=None,
+                )
+            )
+
+            return error_result
 
     def _analyze_complexity(self, description: str) -> str:
         """Analyze campaign description to determine expected complexity."""

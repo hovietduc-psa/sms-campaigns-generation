@@ -481,6 +481,31 @@ Remember: Your output must be perfect, valid JSON that follows the FlowBuilder f
             instructions.append("- Use product_choice node for interactive selection")
             instructions.append("- Include product images for better engagement")
 
+        # E-commerce Purchase Processing
+        if "purchase" in description_lower or "buy" in description_lower or "shop" in description_lower:
+            instructions.append("- Include purchase node for transaction processing")
+            instructions.append("- Add cartSource configuration (latest/manual)")
+            instructions.append("- Set up purchase completion confirmation")
+        # Professional Contact Features
+        if "welcome" in description_lower or "professional" in description_lower:
+            instructions.append("- Consider adding sendContactCard: True for professional appearance")
+            instructions.append("- Include discountExpiry for time-sensitive offers")
+        # Follow-up Timing
+        if "followup" in description_lower or "reminder" in description_lower:
+            instructions.append("- Use delay nodes for precise timing control")
+            instructions.append("- Consider 2-24 hour timeouts for non-responders")
+            instructions.append("- Add 5-30 minute delays before gentle follow-ups")
+        # VIP Segmentation Enhancement
+        if "vip" in description_lower and ("segment" in description_lower or "purchase" in description_lower):
+            instructions.append("- Use event-based segmentation (placed_order) for dynamic VIP detection")
+            instructions.append("- Include purchase_offer node for VIP customers with cart management")
+            instructions.append("- Add product_choice node for regular customers")
+        # Discount Management
+        if "discount" in description_lower or "offer" in description_lower:
+            instructions.append("- Include discountType, discountValue, and discountCode fields")
+            instructions.append("- Set discountExpiry for time-limited offers")
+            instructions.append("- Consider different discount tiers (10% for new, 20% for VIP)")
+
         # Adjust based on complexity
         if complexity_level == "simple":
             instructions.append("- Keep the flow simple: 2-4 nodes maximum")
@@ -1068,6 +1093,223 @@ Remember: Your output must be perfect, valid JSON that follows the FlowBuilder f
                             "events": [
                                 {
                                     "id": "limited-end",
+                                    "type": "default",
+                                    "nextStepID": "end-node",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "end-node",
+                            "type": "end",
+                            "label": "End",
+                            "active": True,
+                            "parameters": {},
+                            "events": []
+                        }
+                    ]
+                }
+            },
+            {
+                "description": "professional e-commerce VIP campaign with purchase processing (complex)",
+                "complexity": "complex",
+                "flow": {
+                    "initialStepID": "welcome-message",
+                    "steps": [
+                        {
+                            "id": "welcome-message",
+                            "type": "message",
+                            "content": "Hi {{first_name}}! Welcome to our store. Would you like to see our new products?",
+                            "text": "Hi {{first_name}}! Welcome to our store. Would you like to see our new products?",
+                            "addImage": False,
+                            "sendContactCard": True,
+                            "discountType": "percentage",
+                            "discountValue": "10",
+                            "discountExpiry": "2024-12-31T23:59:59",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "welcome-reply",
+                                    "type": "reply",
+                                    "intent": "yes",
+                                    "description": "Customer wants to see new products",
+                                    "nextStepID": "segment-check",
+                                    "active": True,
+                                    "parameters": {}
+                                },
+                                {
+                                    "id": "welcome-noreply",
+                                    "type": "noreply",
+                                    "after": {
+                                        "value": 24,
+                                        "unit": "hours"
+                                    },
+                                    "nextStepID": "followup-delay",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "segment-check",
+                            "type": "segment",
+                            "label": "VIP Customer Check",
+                            "conditions": [
+                                {
+                                    "id": 1,
+                                    "type": "event",
+                                    "operator": "has",
+                                    "action": "placed_order",
+                                    "filter": "all orders",
+                                    "timePeriod": "within the last 30 Days",
+                                    "timePeriodType": "relative"
+                                }
+                            ],
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "vip-yes",
+                                    "type": "split",
+                                    "label": "include",
+                                    "action": "include",
+                                    "nextStepID": "vip-offer",
+                                    "active": True,
+                                    "parameters": {}
+                                },
+                                {
+                                    "id": "vip-no",
+                                    "type": "split",
+                                    "label": "exclude",
+                                    "action": "exclude",
+                                    "nextStepID": "regular-products",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "vip-offer",
+                            "type": "purchase_offer",
+                            "label": "VIP Special Offer",
+                            "messageType": "personalized",
+                            "messageText": "Hi {{first_name}}! As a VIP customer, here's an exclusive offer just for you:\\n\\n{{Cart List}}\\n\\nReply YES to claim your special discount!",
+                            "cartSource": "manual",
+                            "products": [
+                                {
+                                    "productVariantId": "vip-123",
+                                    "quantity": "1",
+                                    "uniqueId": 1
+                                }
+                            ],
+                            "discount": True,
+                            "discountType": "percentage",
+                            "discountPercentage": "20",
+                            "discountExpiry": True,
+                            "discountExpiryDate": "2024-12-31T23:59:59",
+                            "includeProductImage": True,
+                            "skipForRecentOrders": True,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "vip-buy",
+                                    "type": "reply",
+                                    "intent": "yes",
+                                    "nextStepID": "purchase-process",
+                                    "active": True,
+                                    "parameters": {}
+                                },
+                                {
+                                    "id": "vip-noreply",
+                                    "type": "noreply",
+                                    "after": {
+                                        "value": 2,
+                                        "unit": "hours"
+                                    },
+                                    "nextStepID": "followup-message",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "regular-products",
+                            "type": "product_choice",
+                            "messageType": "standard",
+                            "messageText": "Reply to buy:\\n\\n{{Product List}}",
+                            "productSelection": "popularity",
+                            "productImages": True,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "regular-buy",
+                                    "type": "reply",
+                                    "intent": "buy",
+                                    "nextStepID": "purchase-process",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "purchase-process",
+                            "type": "purchase",
+                            "cartSource": "latest",
+                            "discount": False,
+                            "customTotals": False,
+                            "sendReminderForNonPurchasers": True,
+                            "allowAutomaticPayment": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "purchase-complete",
+                                    "type": "default",
+                                    "nextStepID": "end-node",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "followup-delay",
+                            "type": "delay",
+                            "time": "5",
+                            "period": "Minutes",
+                            "delay": {
+                                "value": "5",
+                                "unit": "Minutes"
+                            },
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "followup-event",
+                                    "type": "default",
+                                    "nextStepID": "followup-message",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "followup-message",
+                            "type": "message",
+                            "content": "Just leaving this with you. You might be busy. Reach out when you're ready!",
+                            "text": "Just leaving this with you. You might be busy. Reach out when you're ready!",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "followup-end",
                                     "type": "default",
                                     "nextStepID": "end-node",
                                     "active": True,

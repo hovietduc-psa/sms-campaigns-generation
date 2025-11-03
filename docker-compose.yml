@@ -18,7 +18,11 @@ services:
       - DEBUG=true
       - ENVIRONMENT=development
       - LLM_PROVIDER=openrouter
-      - OPENROUTER_API_KEY=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
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - OPENROUTER_MAX_TOKENS=${OPENROUTER_MAX_TOKENS}
+      - OPENROUTER_TEMPERATURE=${OPENROUTER_TEMPERATURE}
+      - OPENROUTER_TIMEOUT=${OPENROUTER_TIMEOUT}
     volumes:
       - ./src:/app/src
       - ./logs:/app/logs
@@ -52,21 +56,21 @@ services:
       retries: 5
 
   # Redis cache
-  redis:
-    image: redis:7-alpine
-    container_name: sms-campaign-redis
-    ports:
-      - "6380:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - sms-campaign-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: sms-campaign-redis
+  #   ports:
+  #     - "6380:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - sms-campaign-network
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   # Production app service
   app-prod:

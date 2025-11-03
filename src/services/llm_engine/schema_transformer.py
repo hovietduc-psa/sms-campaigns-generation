@@ -166,24 +166,24 @@ class SchemaTransformer:
         if not content:
             content = "Hi {{first_name}}! This is a campaign message."
 
-        # Create message content object
-        message_content = MessageContent(
-            body=content,
-            subject=step_data.get("subject", "SMS Campaign Message"),
-            mediaUrl=step_data.get("mediaUrl"),
-            templateId=step_data.get("templateId"),
-            templateData=step_data.get("templateData", {})
-        )
+        # Create message content dictionary
+        message_content = {
+            "body": content,
+            "subject": step_data.get("subject", "SMS Campaign Message"),
+            "mediaUrl": step_data.get("mediaUrl"),
+            "templateId": step_data.get("templateId"),
+            "templateData": step_data.get("templateData", {})
+        }
 
-        # Create recipient object - extract from various possible sources
-        recipient = Recipient(
-            type="all",  # Default to all recipients
-            segmentId=step_data.get("segmentId"),
-            contactId=step_data.get("contactId"),
-            phoneNumber=step_data.get("phoneNumber"),
-            email=step_data.get("email"),
-            customFilter=step_data.get("customFilter", {})
-        )
+        # Create recipient dictionary - extract from various possible sources
+        recipient = {
+            "type": "all",  # Default to all recipients
+            "segmentId": step_data.get("segmentId"),
+            "contactId": step_data.get("contactId"),
+            "phoneNumber": step_data.get("phoneNumber"),
+            "email": step_data.get("email"),
+            "customFilter": step_data.get("customFilter", {})
+        }
 
         # Create sender object if needed
         sender_data = None
@@ -203,7 +203,7 @@ class SchemaTransformer:
                 recipient=recipient,
                 sender=sender_data
             )
-            config_dict = config.model_dump()
+            config_dict = config if isinstance(config, dict) else config.model_dump()
         except Exception as e:
             logger.warning(f"Failed to create SendMessageConfig, using minimal config: {e}")
             # Create minimal valid config
@@ -283,7 +283,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "Delay",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -347,11 +347,11 @@ class SchemaTransformer:
                     "showPropertyOperatorOptions": False
                 }]
 
-            # Create ConditionConfig using Pydantic model
-            config = ConditionConfig(
-                conditions=condition_configs,
-                operator=operator
-            )
+            # Create condition config dictionary
+            config = {
+                "conditions": condition_configs,
+                "operator": operator
+            }
 
             # Determine next step from multiple sources
             next_step_id = None
@@ -369,7 +369,7 @@ class SchemaTransformer:
             return {
                 "id": new_id,
                 "type": "Condition",
-                "config": config.model_dump(),
+                "config": config,
                 "nextStepId": next_step_id,
                 "active": step_data.get("active", True)
             }
@@ -377,8 +377,8 @@ class SchemaTransformer:
         except Exception as e:
             logger.warning(f"Failed to transform condition step, using fallback: {e}")
             # Create minimal valid condition as fallback
-            fallback_config = ConditionConfig(
-                conditions=[{
+            fallback_config = {
+                "conditions": [{
                     "id": 1,
                     "type": "property",
                     "operator": "has",
@@ -386,13 +386,13 @@ class SchemaTransformer:
                     "propertyValue": "vip",
                     "propertyOperator": "with a value of"
                 }],
-                operator="AND"
-            )
+                "operator": "AND"
+            }
 
             return {
                 "id": new_id,
                 "type": "Condition",
-                "config": fallback_config.model_dump(),
+                "config": fallback_config,
                 "nextStepId": step_data.get("nextStepId"),
                 "active": step_data.get("active", True)
             }
@@ -432,7 +432,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "Webhook",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -456,7 +456,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "AddToCRM",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -480,7 +480,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "RemoveFromCRM",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -505,7 +505,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "UpdateContact",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -538,7 +538,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "AddTag",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -571,7 +571,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "RemoveTag",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -594,7 +594,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "TrackEvent",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -617,7 +617,7 @@ class SchemaTransformer:
         return {
             "id": new_id,
             "type": "ATest",
-            "config": config.model_dump(),
+            "config": config if isinstance(config, dict) else config.model_dump(),
             "nextStepId": next_step_id,
             "active": step_data.get("active", True)
         }
@@ -651,7 +651,7 @@ class SchemaTransformer:
             return {
                 "id": new_id,
                 "type": "Distribute",
-                "config": config.model_dump(),
+                "config": config if isinstance(config, dict) else config.model_dump(),
                 "nextStepId": next_step_id,
                 "active": step_data.get("active", True)
             }
@@ -666,7 +666,7 @@ class SchemaTransformer:
             return {
                 "id": new_id,
                 "type": "Distribute",
-                "config": fallback_config.model_dump(),
+                "config": fallback_config if isinstance(fallback_config, dict) else fallback_config.model_dump(),
                 "nextStepId": step_data.get("nextStepId"),
                 "active": step_data.get("active", True)
             }
@@ -702,7 +702,7 @@ class SchemaTransformer:
             return {
                 "id": new_id,
                 "type": "Random",
-                "config": config.model_dump(),
+                "config": config if isinstance(config, dict) else config.model_dump(),
                 "nextStepId": next_step_id,
                 "active": step_data.get("active", True)
             }
@@ -716,7 +716,7 @@ class SchemaTransformer:
             return {
                 "id": new_id,
                 "type": "Random",
-                "config": fallback_config.model_dump(),
+                "config": fallback_config if isinstance(fallback_config, dict) else fallback_config.model_dump(),
                 "nextStepId": step_data.get("nextStepId"),
                 "active": step_data.get("active", True)
             }
@@ -750,7 +750,7 @@ class SchemaTransformer:
             return {
                 "id": new_id,
                 "type": "WaitUntil",
-                "config": config.model_dump(),
+                "config": config if isinstance(config, dict) else config.model_dump(),
                 "nextStepId": next_step_id,
                 "active": step_data.get("active", True)
             }
@@ -765,7 +765,7 @@ class SchemaTransformer:
             return {
                 "id": new_id,
                 "type": "WaitUntil",
-                "config": fallback_config.model_dump(),
+                "config": fallback_config if isinstance(fallback_config, dict) else fallback_config.model_dump(),
                 "nextStepId": step_data.get("nextStepId"),
                 "active": step_data.get("active", True)
             }

@@ -14,8 +14,11 @@ from fastapi.staticfiles import StaticFiles
 
 from src.core.config import get_settings
 from src.core.logging import setup_logging
+from src.core.database import init_db, close_db
+from src.services.database.campaign_logger import get_database_logger
 from src.api.endpoints.campaigns import router as campaigns_router
 from src.api.endpoints.health import router as health_router
+from src.api.endpoints.database import router as database_router  # Fixed import
 from src.api.middleware.error_handlers import setup_exception_handlers
 from src.api.middleware.tracking import (
     RequestTrackingMiddleware,
@@ -36,14 +39,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         log_file=settings.LOG_FILE
     )
 
-    # TODO: Initialize database connections
-    # TODO: Initialize Redis connection
-    # TODO: Initialize other resources
+    # Initialize database (fault-tolerant)
+    try:
+        await init_db()
+        print("SUCCESS: Database initialized successfully")
+    except Exception as e:
+        print(f"WARNING: Database initialization failed: {e}")
+        print("INFO: System will continue without database logging")
+        # Disable database logging if initialization fails
+        db_logger = get_database_logger()
+        db_logger.disable()
+
+    # Initialize database logger health check
+    db_logger = get_database_logger()
+    if await db_logger.is_healthy():
+        print("SUCCESS: Database logger healthy")
+    else:
+        print("WARNING: Database logger unhealthy, using memory fallback")
+        db_logger.disable()
 
     yield
 
     # Shutdown
-    # TODO: Cleanup resources
+    try:
+        # Cleanup database logger
+        await db_logger.cleanup()
+        await close_db()
+        print("SUCCESS: Database connections closed")
+    except Exception as e:
+        print(f"WARNING: Database cleanup failed: {e}")
 
 
 def create_application() -> FastAPI:
@@ -126,6 +150,12 @@ def create_application() -> FastAPI:
         health_router,
         prefix=settings.API_V1_STR,
         tags=["health"]
+    )
+
+    app.include_router(
+        database_router,
+        prefix=f"{settings.API_V1_STR}/database",
+        tags=["database"]
     )
 
     # Root health check endpoint
