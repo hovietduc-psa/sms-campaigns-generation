@@ -98,10 +98,16 @@ class CampaignOrchestrator:
         )
         self.validator.update_config(**validation_config.__dict__)
 
+        # Get the correct model based on provider
+        if self.settings.LLM_PROVIDER.lower() == "openrouter":
+            llm_model = self.settings.OPENROUTER_MODEL
+        else:
+            llm_model = self.settings.OPENAI_MODEL
+
         logger.info(
             "Campaign orchestrator initialized",
             extra={
-                "llm_model": self.settings.OPENAI_MODEL,
+                "llm_model": llm_model,
                 "validation_enabled": self.settings.ENABLE_FLOW_VALIDATION,
                 "auto_correction_enabled": self.settings.ENABLE_AUTO_CORRECTION,
             }
@@ -464,13 +470,23 @@ class CampaignOrchestrator:
 
     def get_generation_statistics(self) -> Dict[str, Any]:
         """Get generation statistics and performance metrics."""
+        # Get the correct model and settings based on provider
+        if self.settings.LLM_PROVIDER.lower() == "openrouter":
+            llm_model = self.settings.OPENROUTER_MODEL
+            max_tokens = self.settings.OPENROUTER_MAX_TOKENS
+            temperature = self.settings.OPENROUTER_TEMPERATURE
+        else:
+            llm_model = self.settings.OPENAI_MODEL
+            max_tokens = self.settings.OPENAI_MAX_TOKENS
+            temperature = self.settings.OPENAI_TEMPERATURE
+
         return {
             "orchestrator_status": "active",
-            "llm_model": self.settings.OPENAI_MODEL,
+            "llm_model": llm_model,
             "validation_enabled": self.settings.ENABLE_FLOW_VALIDATION,
             "auto_correction_enabled": self.settings.ENABLE_AUTO_CORRECTION,
-            "max_tokens": self.settings.OPENAI_MAX_TOKENS,
-            "temperature": self.settings.OPENAI_TEMPERATURE,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
         }
 
     async def health_check(self) -> Dict[str, Any]:

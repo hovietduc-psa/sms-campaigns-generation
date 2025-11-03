@@ -121,27 +121,45 @@ class PromptBuilder:
    - "productImages": boolean (required) - Send product images
    - "discount": string (required) - Discount type: "None" | "10%" | "$5" | "SAVE20"
 
-5. **Events Structure**: Most nodes need "events" array with:
+7. **Experiment Node Fields**: All "experiment" type nodes MUST include:
+   - "experimentName": string (required) - Name of the experiment
+   - "version": string (required) - Experiment version (default "1")
+   - "content": string (required) - Display content for the experiment
+
+8. **Rate Limit Node Fields**: All "rate_limit" type nodes MUST include:
+   - "occurrences": string (required) - Number of allowed occurrences as string
+   - "timespan": string (required) - Timespan value as string
+   - "period": string (required) - "Minutes" | "Hours" | "Days"
+   - "content": string (required) - Display content showing rate limit
+
+9. **Events Structure**: Most nodes need "events" array with:
    - "id": unique event identifier
    - "type": "default", "reply", "noreply", or "split"
    - "nextStepID": reference to another node's ID
    - "active": boolean
    - "parameters": {{}}
 
-7. **ID Generation**: Generate unique, human-readable IDs for every node (e.g., "welcome-message", "vip-check", "cart-reminder").
+10. **ID Generation**: Generate unique, human-readable IDs for every node (e.g., "welcome-message", "vip-check", "cart-reminder").
 
-8. **Reference Integrity**:
+11. **Reference Integrity**:
    - `initialStepID` must point to the ID of the first node in the steps array
    - Every `nextStepID` must reference an existing node ID within the same workflow
    - Ensure no orphaned nodes - all nodes must be reachable from the initial step
 
-9. **Flow Completeness**: Every branch must eventually lead to an END node. No dead ends.
+12. **Flow Completeness**: Every branch must eventually lead to an END node. No dead ends.
 
-10. **Marketing Best Practices**:
+13. **Marketing Best Practices**:
    - Use personalization variables like {{first_name}}, {{brand_name}}
    - Keep messages concise and engaging
    - Include appropriate delays (typically 1-24 hours)
    - Add value propositions and clear CTAs
+
+14. **Critical Node Type Selection Rules**:
+   - **Standalone REPLY nodes**: Use ONLY when you need to handle customer responses WITHOUT sending a message first. Examples: After a delay, after a split, or as a standalone response handler.
+   - **Reply events in MESSAGE nodes**: Use when you want to send a message AND immediately handle responses to that specific message.
+   - **Standalone NO_REPLY nodes**: Use ONLY when you need to handle timeouts WITHOUT sending a message first. Examples: After a REPLY node, after a PROPERTY node.
+   - **No-reply events in MESSAGE nodes**: Use when you send a message AND want to handle timeouts for that specific message.
+   - **Key Principle**: If you need to send content to the customer, use a MESSAGE node with events. If you only need to handle responses/timeouts without sending content, use standalone REPLY/NO_REPLY nodes.
 
 ## Available Node Types:
 
@@ -277,6 +295,65 @@ class PromptBuilder:
         "unit": "hours"
       }},
       "nextStepID": "followup-message",
+      "active": True,
+      "parameters": {{}}
+    }}
+  ]
+}}
+```
+
+### EXPERIMENT Node:
+```json
+{{
+  "id": "welcome-test",
+  "type": "experiment",
+  "label": "Welcome Message Test",
+  "experimentName": "Welcome Message Test",
+  "version": "1",
+  "content": "Display content: Welcome Message Test(v1)",
+  "active": True,
+  "parameters": {{}},
+  "events": [
+    {{
+      "id": "event-group-a",
+      "type": "split",
+      "label": "Group A",
+      "nextStepID": "welcome-group-a",
+      "active": True,
+      "parameters": {{}}
+    }},
+    {{
+      "id": "event-group-b",
+      "type": "split",
+      "label": "Group B",
+      "nextStepID": "welcome-group-b",
+      "active": True,
+      "parameters": {{}}
+    }}
+  ]
+}}
+```
+
+### RATE_LIMIT Node:
+```json
+{{
+  "id": "message-throttle",
+  "type": "rate_limit",
+  "occurrences": "12",
+  "timespan": "11",
+  "period": "Minutes",
+  "rateLimit": {{
+    "limit": "12",
+    "period": "Minutes"
+  }},
+  "content": "Display content: 12 times every 11 minutes",
+  "active": True,
+  "parameters": {{}},
+  "events": [
+    {{
+      "id": "rate-limit-pass",
+      "type": "default",
+      "nextStepID": "next-step-id",
       "active": True,
       "parameters": {{}}
     }}
@@ -576,6 +653,421 @@ Remember: Your output must be perfect, valid JSON that follows the FlowBuilder f
                             "events": [
                                 {
                                     "id": "regular-end",
+                                    "type": "default",
+                                    "nextStepID": "end-node",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "end-node",
+                            "type": "end",
+                            "label": "End",
+                            "active": True,
+                            "parameters": {},
+                            "events": []
+                        }
+                    ]
+                }
+            },
+            {
+                "description": "interactive menu with standalone REPLY nodes (medium)",
+                "complexity": "medium",
+                "flow": {
+                    "initialStepID": "menu-question",
+                    "steps": [
+                        {
+                            "id": "menu-question",
+                            "type": "message",
+                            "content": "Hi {{first_name}}! Would you like to receive our special offers? Reply YES or NO",
+                            "text": "Hi {{first_name}}! Would you like to receive our special offers? Reply YES or NO",
+                            "addImage": False,
+                            "sendContactCard": False,
+                            "discountType": "none",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "menu-yes",
+                                    "type": "default",
+                                    "nextStepID": "reply-yes-handler",
+                                    "active": True,
+                                    "parameters": {}
+                                },
+                                {
+                                    "id": "menu-no",
+                                    "type": "default",
+                                    "nextStepID": "reply-no-handler",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "reply-yes-handler",
+                            "type": "reply",
+                            "enabled": True,
+                            "intent": "yes",
+                            "description": "Customer wants to receive special offers",
+                            "label": "Yes",
+                            "replyConfig": {},
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "yes-confirmed",
+                                    "type": "default",
+                                    "nextStepID": "special-offers",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "reply-no-handler",
+                            "type": "reply",
+                            "enabled": True,
+                            "intent": "no",
+                            "description": "Customer does not want special offers",
+                            "label": "No",
+                            "replyConfig": {},
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "no-confirmed",
+                                    "type": "default",
+                                    "nextStepID": "end-node",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "special-offers",
+                            "type": "message",
+                            "content": "Great! Here are our special offers just for you: {{Discount Label}}",
+                            "text": "Great! Here are our special offers just for you: {{Discount Label}}",
+                            "addImage": False,
+                            "sendContactCard": False,
+                            "discountType": "percentage",
+                            "discountValue": "20",
+                            "discountCode": "SPECIAL20",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "offers-end",
+                                    "type": "default",
+                                    "nextStepID": "end-node",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "end-node",
+                            "type": "end",
+                            "label": "End",
+                            "active": True,
+                            "parameters": {},
+                            "events": []
+                        }
+                    ]
+                }
+            },
+            {
+                "description": "timeout response with standalone NO_REPLY node (medium)",
+                "complexity": "medium",
+                "flow": {
+                    "initialStepID": "initial-question",
+                    "steps": [
+                        {
+                            "id": "initial-question",
+                            "type": "message",
+                            "content": "Hi {{first_name}}! How are you enjoying our service? Please reply with your feedback.",
+                            "text": "Hi {{first_name}}! How are you enjoying our service? Please reply with your feedback.",
+                            "addImage": False,
+                            "sendContactCard": False,
+                            "discountType": "none",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "question-timeout",
+                                    "type": "default",
+                                    "nextStepID": "no-reply-handler",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "no-reply-handler",
+                            "type": "no_reply",
+                            "enabled": True,
+                            "value": 2,
+                            "unit": "hours",
+                            "label": "No Reply",
+                            "content": "Display content: 2 hours",
+                            "after": {
+                                "value": 2,
+                                "unit": "hours"
+                            },
+                            "seconds": 7200,
+                            "period": "Hours",
+                            "noReplyConfig": {},
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "timeout-followup",
+                                    "type": "default",
+                                    "nextStepID": "followup-message",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "followup-message",
+                            "type": "message",
+                            "content": "We noticed you haven't responded. Is there anything we can help you with? Reply HELP for assistance.",
+                            "text": "We noticed you haven't responded. Is there anything we can help you with? Reply HELP for assistance.",
+                            "addImage": False,
+                            "sendContactCard": False,
+                            "discountType": "none",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "followup-end",
+                                    "type": "default",
+                                    "nextStepID": "end-node",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "end-node",
+                            "type": "end",
+                            "label": "End",
+                            "active": True,
+                            "parameters": {},
+                            "events": []
+                        }
+                    ]
+                }
+            },
+            {
+                "description": "customer segmentation with standalone SPLIT nodes (medium)",
+                "complexity": "medium",
+                "flow": {
+                    "initialStepID": "customer-split",
+                    "steps": [
+                        {
+                            "id": "customer-split",
+                            "type": "split",
+                            "enabled": True,
+                            "label": "include",
+                            "action": "include",
+                            "description": "Include customers in Group A for testing",
+                            "content": "Display content: include",
+                            "splitConfig": {},
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "split-group-a",
+                                    "type": "default",
+                                    "nextStepID": "group-a-message",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "group-a-message",
+                            "type": "message",
+                            "content": "Welcome to Group A! You'll receive our premium offers.",
+                            "text": "Welcome to Group A! You'll receive our premium offers.",
+                            "addImage": False,
+                            "sendContactCard": False,
+                            "discountType": "percentage",
+                            "discountValue": "25",
+                            "discountCode": "GROUPA25",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "group-a-end",
+                                    "type": "default",
+                                    "nextStepID": "end-node",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "end-node",
+                            "type": "end",
+                            "label": "End",
+                            "active": True,
+                            "parameters": {},
+                            "events": []
+                        }
+                    ]
+                }
+            },
+            {
+                "description": "customer preference tracking with PROPERTY node (medium)",
+                "complexity": "medium",
+                "flow": {
+                    "initialStepID": "preference-setter",
+                    "steps": [
+                        {
+                            "id": "preference-setter",
+                            "type": "message",
+                            "content": "Hi {{first_name}}! What's your preferred product category? Reply ELECTRONICS, FASHION, or HOME.",
+                            "text": "Hi {{first_name}}! What's your preferred product category? Reply ELECTRONICS, FASHION, or HOME.",
+                            "addImage": False,
+                            "sendContactCard": False,
+                            "discountType": "none",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "preference-captured",
+                                    "type": "default",
+                                    "nextStepID": "property-updater",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "property-updater",
+                            "type": "property",
+                            "label": "Customer Property Step",
+                            "content": "Display content: Customer Property Step",
+                            "properties": [
+                                {
+                                    "id": 1,
+                                    "name": "preferred_category",
+                                    "value": "electronics"
+                                },
+                                {
+                                    "id": 2,
+                                    "name": "last_interaction",
+                                    "value": "category_selection"
+                                }
+                            ],
+                            "propertyConfig": {},
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "property-confirmation",
+                                    "type": "default",
+                                    "nextStepID": "category-confirmation",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "category-confirmation",
+                            "type": "message",
+                            "content": "Thanks! We've noted your preference for {{preferred_category}}. We'll send you relevant updates!",
+                            "text": "Thanks! We've noted your preference for {{preferred_category}}. We'll send you relevant updates!",
+                            "addImage": False,
+                            "sendContactCard": False,
+                            "discountType": "none",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "confirmation-end",
+                                    "type": "default",
+                                    "nextStepID": "end-node",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "end-node",
+                            "type": "end",
+                            "label": "End",
+                            "active": True,
+                            "parameters": {},
+                            "events": []
+                        }
+                    ]
+                }
+            },
+            {
+                "description": "usage limitation with LIMIT node (medium)",
+                "complexity": "medium",
+                "flow": {
+                    "initialStepID": "limit-check",
+                    "steps": [
+                        {
+                            "id": "limit-check",
+                            "type": "limit",
+                            "occurrences": "5",
+                            "timespan": "1",
+                            "period": "Hours",
+                            "limit": {
+                                "value": "5",
+                                "period": "Hours"
+                            },
+                            "content": "Display content: 5 times every 1 hour",
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "limit-passed",
+                                    "type": "default",
+                                    "nextStepID": "limited-message",
+                                    "active": True,
+                                    "parameters": {}
+                                }
+                            ]
+                        },
+                        {
+                            "id": "limited-message",
+                            "type": "message",
+                            "content": "Hi {{first_name}}! Here's your exclusive offer (limited to 5 per hour).",
+                            "text": "Hi {{first_name}}! Here's your exclusive offer (limited to 5 per hour).",
+                            "addImage": False,
+                            "sendContactCard": False,
+                            "discountType": "percentage",
+                            "discountValue": "15",
+                            "discountCode": "LIMITED15",
+                            "handled": False,
+                            "aiGenerated": False,
+                            "active": True,
+                            "parameters": {},
+                            "events": [
+                                {
+                                    "id": "limited-end",
                                     "type": "default",
                                     "nextStepID": "end-node",
                                     "active": True,

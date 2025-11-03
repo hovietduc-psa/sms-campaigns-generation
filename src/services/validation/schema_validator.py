@@ -334,7 +334,15 @@ class SchemaValidator:
                 node_issues.extend(self._validate_rate_limit_node(node, corrected_node, i))
             elif node_type == "limit":
                 node_issues.extend(self._validate_limit_node(node, corrected_node, i))
-            elif node_type in ["reply", "no_reply", "split", "experiment", "schedule", "property", "end"]:
+            elif node_type == "reply":
+                node_issues.extend(self._validate_reply_node(node, corrected_node, i))
+            elif node_type == "no_reply":
+                node_issues.extend(self._validate_no_reply_node(node, corrected_node, i))
+            elif node_type == "split":
+                node_issues.extend(self._validate_split_node(node, corrected_node, i))
+            elif node_type == "property":
+                node_issues.extend(self._validate_property_node(node, corrected_node, i))
+            elif node_type in ["experiment", "schedule", "end"]:
                 # Basic validation for other node types
                 node_issues.extend(self._validate_generic_node(node, corrected_node, i))
 
@@ -347,11 +355,9 @@ class SchemaValidator:
             corrected_steps.append(corrected_node)
 
         # Update corrected data
-        if any(issue.severity == "error" for issue in issues):
-            # Don't update if there are errors
-            pass
-        else:
-            corrected_data["steps"] = corrected_steps
+        # Always apply corrections for missing fields (even with errors)
+        # The auto-correction system should fill in missing required fields
+        corrected_data["steps"] = corrected_steps
 
         return issues
 
@@ -954,46 +960,261 @@ class SchemaValidator:
         # Limit node has same structure as rate_limit
         return self._validate_rate_limit_node(node, corrected_node, index)
 
+    def _validate_reply_node(self, node: Dict[str, Any], corrected_node: Dict[str, Any], index: int) -> List[ValidationIssue]:
+        """Validate reply node."""
+        issues = []
+        node_id = node.get("id", f"node-{index}")
+
+        # Check required fields
+        if "enabled" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_REPLY_ENABLED",
+                message="Reply node missing required enabled field",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].enabled",
+                suggested_fix="Add enabled field with boolean value (true/false)"
+            ))
+            corrected_node["enabled"] = True
+
+        if "intent" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_REPLY_INTENT",
+                message="Reply node missing required intent",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].intent",
+                suggested_fix="Add intent field with the intent to match (e.g., 'yes', 'no')"
+            ))
+
+        if "description" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_REPLY_DESCRIPTION",
+                message="Reply node missing required description",
+                severity="warning",
+                node_id=node_id,
+                field_path=f"steps[{index}].description",
+                suggested_fix="Add description field for better intent matching"
+            ))
+            corrected_node["description"] = f"Handle {node.get('intent', 'reply')} intent"
+
+        if "label" not in node:
+            corrected_node["label"] = node.get("intent", "reply")
+
+        return issues
+
+    def _validate_no_reply_node(self, node: Dict[str, Any], corrected_node: Dict[str, Any], index: int) -> List[ValidationIssue]:
+        """Validate no_reply node."""
+        issues = []
+        node_id = node.get("id", f"node-{index}")
+
+        # Check required fields
+        if "enabled" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_NO_REPLY_ENABLED",
+                message="NoReply node missing required enabled field",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].enabled",
+                suggested_fix="Add enabled field with boolean value (true/false)"
+            ))
+            corrected_node["enabled"] = True
+
+        if "value" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_NO_REPLY_VALUE",
+                message="NoReply node missing required value",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].value",
+                suggested_fix="Add value field with numeric wait time"
+            ))
+            corrected_node["value"] = 2
+
+        if "unit" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_NO_REPLY_UNIT",
+                message="NoReply node missing required unit",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].unit",
+                suggested_fix="Add unit field with time unit ('seconds', 'minutes', 'hours', 'days')"
+            ))
+            corrected_node["unit"] = "hours"
+
+        # Validate after structure
+        if "after" not in node:
+            value = node.get("value", 2)
+            unit = node.get("unit", "hours")
+            corrected_node["after"] = {"value": value, "unit": unit}
+
+        # Validate content display
+        if "content" not in node:
+            value = node.get("value", 2)
+            unit = node.get("unit", "hours")
+            corrected_node["content"] = f"Display content: {value} {unit}"
+
+        # Validate legacy fields
+        if "seconds" not in node:
+            value = int(node.get("value", 2))
+            unit = node.get("unit", "hours").lower()
+            if unit == "hours":
+                seconds = value * 3600
+            elif unit == "minutes":
+                seconds = value * 60
+            else:
+                seconds = value
+            corrected_node["seconds"] = seconds
+
+        if "period" not in node:
+            unit = node.get("unit", "hours")
+            corrected_node["period"] = unit.capitalize()
+
+        return issues
+
+    def _validate_split_node(self, node: Dict[str, Any], corrected_node: Dict[str, Any], index: int) -> List[ValidationIssue]:
+        """Validate split node."""
+        issues = []
+        node_id = node.get("id", f"node-{index}")
+
+        # Check required fields
+        if "enabled" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_SPLIT_ENABLED",
+                message="Split node missing required enabled field",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].enabled",
+                suggested_fix="Add enabled field with boolean value (true/false)"
+            ))
+            corrected_node["enabled"] = True
+
+        if "action" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_SPLIT_ACTION",
+                message="Split node missing required action",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].action",
+                suggested_fix="Add action field with value ('include' or 'exclude')"
+            ))
+            corrected_node["action"] = "include"
+
+        # Validate action value
+        action = node.get("action")
+        if action and action not in ["include", "exclude"]:
+            issues.append(ValidationIssue(
+                code="INVALID_SPLIT_ACTION",
+                message=f"Split action must be 'include' or 'exclude', got: {action}",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].action",
+                suggested_fix="Set action to 'include' or 'exclude'"
+            ))
+
+        # Validate label
+        if "label" not in node:
+            action = node.get("action", "include")
+            corrected_node["label"] = action
+
+        # Validate content display
+        if "content" not in node:
+            action = node.get("action", "include")
+            corrected_node["content"] = f"Display content: {action}"
+
+        return issues
+
+    def _validate_property_node(self, node: Dict[str, Any], corrected_node: Dict[str, Any], index: int) -> List[ValidationIssue]:
+        """Validate property node."""
+        issues = []
+        node_id = node.get("id", f"node-{index}")
+
+        # Check properties array
+        if "properties" not in node:
+            issues.append(ValidationIssue(
+                code="MISSING_PROPERTY_ARRAY",
+                message="Property node missing required properties array",
+                severity="error",
+                node_id=node_id,
+                field_path=f"steps[{index}].properties",
+                suggested_fix="Add properties array with property objects"
+            ))
+            corrected_node["properties"] = []
+        else:
+            properties = node["properties"]
+            if not isinstance(properties, list):
+                issues.append(ValidationIssue(
+                    code="INVALID_PROPERTY_ARRAY",
+                    message="Properties field must be an array",
+                    severity="error",
+                    node_id=node_id,
+                    field_path=f"steps[{index}].properties",
+                    suggested_fix="Set properties to an array of property objects"
+                ))
+                corrected_node["properties"] = []
+            else:
+                # Validate each property
+                for i, prop in enumerate(properties):
+                    if not isinstance(prop, dict):
+                        issues.append(ValidationIssue(
+                            code="INVALID_PROPERTY_OBJECT",
+                            message=f"Property {i} must be an object",
+                            severity="error",
+                            node_id=node_id,
+                            field_path=f"steps[{index}].properties[{i}]",
+                            suggested_fix="Set each property to an object with 'id', 'name', and 'value' fields"
+                        ))
+                        continue
+
+                    # Check required fields for each property
+                    if "id" not in prop:
+                        issues.append(ValidationIssue(
+                            code="MISSING_PROPERTY_ID",
+                            message=f"Property {i} missing required id field",
+                            severity="error",
+                            node_id=node_id,
+                            field_path=f"steps[{index}].properties[{i}].id",
+                            suggested_fix="Add id field with numeric identifier"
+                        ))
+
+                    if "name" not in prop:
+                        issues.append(ValidationIssue(
+                            code="MISSING_PROPERTY_NAME",
+                            message=f"Property {i} missing required name field",
+                            severity="error",
+                            node_id=node_id,
+                            field_path=f"steps[{index}].properties[{i}].name",
+                            suggested_fix="Add name field with property name"
+                        ))
+
+                    if "value" not in prop:
+                        issues.append(ValidationIssue(
+                            code="MISSING_PROPERTY_VALUE",
+                            message=f"Property {i} missing required value field",
+                            severity="error",
+                            node_id=node_id,
+                            field_path=f"steps[{index}].properties[{i}].value",
+                            suggested_fix="Add value field with property value"
+                        ))
+
+        # Set default label if missing
+        if "label" not in node:
+            corrected_node["label"] = "Customer Property Step"
+
+        # Set default content if missing
+        if "content" not in node:
+            corrected_node["content"] = "Display content: Customer Property Step"
+
+        return issues
+
     def _validate_generic_node(self, node: Dict[str, Any], corrected_node: Dict[str, Any], index: int) -> List[ValidationIssue]:
-        """Validate generic node types."""
+        """Validate generic node types (experiment, schedule, end)."""
         issues = []
         node_id = node.get("id", f"node-{index}")
         node_type = node.get("type")
 
-        # Type-specific validations for simpler nodes
-        if node_type == "reply":
-            if not node.get("intent"):
-                issues.append(ValidationIssue(
-                    code="MISSING_REPLY_INTENT",
-                    message="Reply node missing required intent",
-                    severity="error",
-                    node_id=node_id,
-                    field_path=f"steps[{index}].intent",
-                    suggested_fix="Add intent field with the intent to match"
-                ))
-
-        elif node_type == "no_reply":
-            if not node.get("value"):
-                issues.append(ValidationIssue(
-                    code="MISSING_NO_REPLY_VALUE",
-                    message="NoReply node missing required value",
-                    severity="error",
-                    node_id=node_id,
-                    field_path=f"steps[{index}].value",
-                    suggested_fix="Add value field with wait time as number"
-                ))
-
-            if not node.get("unit"):
-                issues.append(ValidationIssue(
-                    code="MISSING_NO_REPLY_UNIT",
-                    message="NoReply node missing required unit",
-                    severity="error",
-                    node_id=node_id,
-                    field_path=f"steps[{index}].unit",
-                    suggested_fix="Add unit field with time unit (seconds, minutes, hours, days)"
-                ))
-
-        elif node_type == "experiment":
+        # Basic validation for remaining node types
+        if node_type == "experiment":
             if not node.get("experimentName"):
                 issues.append(ValidationIssue(
                     code="MISSING_EXPERIMENT_NAME",
@@ -1003,17 +1224,9 @@ class SchemaValidator:
                     field_path=f"steps[{index}].experimentName",
                     suggested_fix="Add experimentName field with experiment name"
                 ))
+                corrected_node["experimentName"] = "Default Experiment"
 
-        elif node_type == "property":
-            if not node.get("properties"):
-                issues.append(ValidationIssue(
-                    code="MISSING_PROPERTIES",
-                    message="Property node missing required properties array",
-                    severity="error",
-                    node_id=node_id,
-                    field_path=f"steps[{index}].properties",
-                    suggested_fix="Add properties array with property objects"
-                ))
+              # No additional validation needed for schedule and end nodes
 
         return issues
 

@@ -371,6 +371,10 @@ class FlowValidator:
             elif step.type == "experiment":
                 issues.extend(self._validate_experiment_logic(step, flow))
 
+            # Validate rate limit nodes
+            elif step.type == "rate_limit":
+                issues.extend(self._validate_rate_limit_logic(step, flow))
+
             # Validate schedule nodes
             elif step.type == "schedule":
                 issues.extend(self._validate_schedule_logic(step, flow))
@@ -437,6 +441,17 @@ class FlowValidator:
         """Validate experiment node logic."""
         issues = []
 
+        # Validate required experimentName field
+        if not hasattr(step, 'experimentName') or not step.experimentName:
+            issues.append(ValidationIssue(
+                code="MISSING_EXPERIMENT_NAME",
+                message=f"Experiment node '{step.id}' must have an 'experimentName' field",
+                severity="error",
+                node_id=step.id,
+                field_path=f"steps.{step.id}.experimentName",
+                suggested_fix="Add a descriptive experimentName (e.g., 'Welcome Message Test')"
+            ))
+
         events = step.events
         split_events = [event for event in events if event.type == "split"]
 
@@ -463,6 +478,54 @@ class FlowValidator:
                 node_id=step.id,
                 field_path=f"steps.{step.id}.events",
                 suggested_fix="Use standard Group A and Group B labels"
+            ))
+
+        return issues
+
+    def _validate_rate_limit_logic(self, step: NodeType, flow: CampaignFlow) -> List[ValidationIssue]:
+        """Validate rate limit node logic."""
+        issues = []
+
+        # Validate required occurrences field
+        if not hasattr(step, 'occurrences') or not step.occurrences:
+            issues.append(ValidationIssue(
+                code="MISSING_RATE_LIMIT_OCCURRENCES",
+                message=f"Rate limit node '{step.id}' must have an 'occurrences' field",
+                severity="error",
+                node_id=step.id,
+                field_path=f"steps.{step.id}.occurrences",
+                suggested_fix="Add occurrences field (e.g., '12')"
+            ))
+
+        # Validate required timespan field
+        if not hasattr(step, 'timespan') or not step.timespan:
+            issues.append(ValidationIssue(
+                code="MISSING_RATE_LIMIT_TIMESPAN",
+                message=f"Rate limit node '{step.id}' must have a 'timespan' field",
+                severity="error",
+                node_id=step.id,
+                field_path=f"steps.{step.id}.timespan",
+                suggested_fix="Add timespan field (e.g., '11')"
+            ))
+
+        # Validate required period field
+        if not hasattr(step, 'period') or not step.period:
+            issues.append(ValidationIssue(
+                code="MISSING_RATE_LIMIT_PERIOD",
+                message=f"Rate limit node '{step.id}' must have a 'period' field",
+                severity="error",
+                node_id=step.id,
+                field_path=f"steps.{step.id}.period",
+                suggested_fix="Add period field ('Minutes', 'Hours', or 'Days')"
+            ))
+        elif hasattr(step, 'period') and step.period not in ["Minutes", "Hours", "Days"]:
+            issues.append(ValidationIssue(
+                code="INVALID_RATE_LIMIT_PERIOD",
+                message=f"Rate limit node '{step.id}' period must be 'Minutes', 'Hours', or 'Days'",
+                severity="error",
+                node_id=step.id,
+                field_path=f"steps.{step.id}.period",
+                suggested_fix="Use 'Minutes', 'Hours', or 'Days' for period"
             ))
 
         return issues
