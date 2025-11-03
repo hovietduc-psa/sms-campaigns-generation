@@ -1,10 +1,11 @@
 """
 Request and response models for the API.
+Updated with whitespace validation fix.
 """
 
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class CampaignGenerationRequest(BaseModel):
@@ -12,10 +13,21 @@ class CampaignGenerationRequest(BaseModel):
 
     campaignDescription: str = Field(
         ...,
-        min_length=3,
+        min_length=1,
         max_length=1000,
         description="Natural language description of the campaign to generate"
     )
+
+    @field_validator('campaignDescription')
+    @classmethod
+    def validate_campaign_description(cls, v):
+        """Validate that campaign description contains actual content, not just whitespace."""
+        if not v or not v.strip():
+            raise ValueError('Campaign description cannot be empty or whitespace only')
+        stripped = v.strip()
+        if len(stripped) < 3:
+            raise ValueError('Campaign description must be at least 3 characters long after removing whitespace')
+        return stripped
 
     # Optional parameters for future enhancement
     language: Optional[str] = Field(
