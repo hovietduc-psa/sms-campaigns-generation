@@ -79,76 +79,133 @@ class PromptBuilder:
 
 2. **Schema Structure**: Follow the FlowBuilder format exactly:
    - "initialStepID": string (required) - ID of the first node
-   - "steps": array of node objects (required) - Each step must be one of the 16 FlowBuilder node types
+   - "steps": array of node objects (required) - Each step must be one of the 7 FlowBuilder node types
 
-3. **Node Types**: Use ONLY these 16 FlowBuilder node types:
-   - "message" - Send SMS messages with content, events, branching
-   - "segment" - Audience segmentation with conditions
-   - "delay" - Time delays before next step
-   - "schedule" - Scheduled time-based branching
-   - "experiment" - A/B testing with groups
-   - "rate_limit" - Rate limiting controls
-   - "reply" - Handle specific reply intents
-   - "no_reply" - Handle no-reply timeouts
-   - "split" - Branching logic (include/exclude)
-   - "property" - Customer property management
-   - "product_choice" - Product selection for purchase
-   - "purchase_offer" - Purchase offers with cart
-   - "purchase" - Direct purchase processing
-   - "limit" - Usage limits
-   - "end" - Flow termination
+3. **Node Types**: Use ONLY these 7 FlowBuilder node types:
+   - "message" - Send SMS message
+   - "segment" - Customer segmentation
+   - "delay" - Create delay
+   - "product_choice" - Product selection
+   - "purchase_offer" - Send purchase offer
+   - "purchase" - Process order
+   - "end" - End flow
 
 4. **Required Fields**: Each node MUST have:
    - "id": unique string identifier
-   - "type": one of the 16 node types above
+   - "type": one of the 7 node types above
+   - "label": string - Display label for the node
+   - "content": string - Node description
    - "active": boolean (default True)
    - "parameters": {{}} (empty object if no custom parameters)
 
 5. **Message Node Fields**: All "message" type nodes MUST include:
-   - "content": string (required) - Message content
-   - "text": string (required) - Same as content (backward compatibility)
-   - "discountType": string (required) - "none" | "percentage" | "amount" | "code"
-   - "addImage": boolean (required) - Whether to include image
-   - "sendContactCard": boolean (required) - Whether to send contact card
-   - "handled": boolean (required) - Processing status
-   - "aiGenerated": boolean (required) - AI generation flag
+   - "messageText": string (required) - Main SMS content
+   - "text": string - Backward compatibility - same as messageText
+   - "addImage": boolean (default false) - Attach image
+   - "imageUrl": string - Image URL when addImage = true
+   - "sendContactCard": boolean (default false) - Send contact card
+   - "discountType": string (default "none") - "none" | "percentage" | "amount" | "code"
+   - "discountValue": string - Discount value when type != "none"
+   - "discountCode": string - Discount code when type = "code"
+   - "discountEmail": string - Email restriction (optional)
+   - "discountExpiry": string - Expiry date (optional)
 
 6. **Product Choice Node Fields**: All "product_choice" type nodes MUST include:
    - "messageType": string (required) - "standard" | "personalized"
    - "messageText": string (required) - Message text with product list
-   - "text": string (required) - Same as messageText (backward compatibility)
-   - "productSelection": string (required) - "automatically" | "popularity" | "recently_viewed" | "manually"
-   - "productImages": boolean (required) - Send product images
-   - "discount": string (required) - Discount type: "None" | "10%" | "$5" | "SAVE20"
+   - "text": string - Backward compatibility
+   - "prompt": string - Alternative to messageText
+   - "productSelection": string (required) - "manually" | "automatically" | "popularity" | "recently_viewed"
+   - "productSelectionPrompt": string - When productSelection = "automatically"
+   - "products": array - When productSelection = "manually"
+     - "id": string (required) - Required product ID
+     - "label": string - Optional product label
+     - "showLabel": boolean - Whether to show label
+     - "uniqueId": number - Internal tracking ID
+   - "productImages": boolean (default true) - Send product images
+   - "customTotals": boolean (default false) - Add custom totals
+   - "customTotalsAmount": string - Custom shipping amount
+   - "discountExpiry": boolean (default false) - Discount has expiry
+   - "discountExpiryDate": string - Expiry date when enabled
+   - "discount": string (default "None") - "None" | "10%" | "$5" | "SAVE20"
 
-7. **Experiment Node Fields**: All "experiment" type nodes MUST include:
-   - "experimentName": string (required) - Name of the experiment
-   - "version": string (required) - Experiment version (default "1")
-   - "content": string (required) - Display content for the experiment
+7. **Delay Node Fields**: All "delay" type nodes MUST include:
+   - "time": string (required) - Time value
+   - "period": string (required) - "Seconds" | "Minutes" | "Hours" | "Days"
 
-8. **Rate Limit Node Fields**: All "rate_limit" type nodes MUST include:
-   - "occurrences": string (required) - Number of allowed occurrences as string
-   - "timespan": string (required) - Timespan value as string
-   - "period": string (required) - "Minutes" | "Hours" | "Days"
-   - "content": string (required) - Display content showing rate limit
+8. **Purchase Offer Node Fields**: All "purchase_offer" type nodes MUST include:
+   - "messageType": string (required) - "standard" | "personalized"
+   - "messageText": string (required) - Message text with cart list
+   - "text": string - Backward compatibility
+   - "cartSource": string (required) - "manual" | "latest"
+   - "products": array - When cartSource = "manual"
+     - "productVariantId": string (required) - Required product variant ID
+     - "quantity": string (required) - Required quantity as string
+     - "uniqueId": number - Internal tracking ID
+   - "discount": boolean (default false) - Enable/disable discount
+   - "discountType": string - When discount = true: "percentage" | "amount" | "code"
+   - "discountPercentage": string - When discountType = "percentage"
+   - "discountAmount": string - When discountType = "amount"
+   - "discountCode": string - When discountType = "code"
+   - "discountAmountLabel": string - Optional label for code discount
+   - "discountEmail": string - Optional email restriction
+   - "discountExpiry": boolean (default false) - Discount has expiry
+   - "discountExpiryDate": string - Expiry date when enabled
+   - "customTotals": boolean (default false) - Add custom totals
+   - "shippingAmount": string - Custom shipping amount when customTotals = true
+   - "includeProductImage": boolean (default true) - Send product images
+   - "skipForRecentOrders": boolean (default true) - Skip for recent orders
 
-9. **Events Structure**: Most nodes need "events" array with:
-   - "id": unique event identifier
-   - "type": "default", "reply", "noreply", or "split"
-   - "nextStepID": reference to another node's ID
-   - "active": boolean
-   - "parameters": {{}}
+9. **Purchase Node Fields**: All "purchase" type nodes MUST include:
+    - "cartSource": string (required) - "manual" | "latest"
+    - "products": array - Product list when cartSource = "manual"
+    - "discount": boolean (default false) - Add discount to order
+    - "customTotals": boolean (default false) - Add custom totals
+    - "shippingAmount": string - Custom shipping amount when customTotals = true
+    - "sendReminderForNonPurchasers": boolean (default false) - Send reminder
+    - "allowAutomaticPayment": boolean (default false) - Auto payment
 
-10. **ID Generation**: Generate unique, human-readable IDs for every node (e.g., "welcome-message", "vip-check", "cart-reminder").
+10. **End Node Fields**: All "end" type nodes MUST include:
+    - "label": string - Display label
+    - "content": string - Node description
+    - No events array - end node terminates flow
 
-11. **Reference Integrity**:
+11. **Events Structure**: Most nodes need "events" array with:
+   - "type": string (required) - "reply" | "noreply" | "split" | "default"
+   - "nextStepID": string (required) - Reference to another node's ID
+   - "intent": string - When type = "reply": intent name
+   - "description": string - Optional description for better intent matching
+   - "after": object - When type = "noreply": {{"value": number, "unit": string}}
+   - "label": string - When type = "split": display label
+   - "action": string - When type = "split": split action
+   - "active": boolean (default true)
+   - "parameters": {{}} (default empty object)
+
+12. **Template Variables Available**:
+   - "{{brand_name}}" - Brand name
+   - "{{store_url}}" - Store URL
+   - "{{first_name}}" - Customer first name
+   - "{{customer_timezone}}" - Customer timezone
+   - "{{agent_name}}" - Agent name
+   - "{{opt_in_terms}}" - Opt-in terms
+   - "{{Product List}}" - Product list with prices (product_choice)
+   - "{{Product List Without Prices}}" - Product list without prices (product_choice)
+   - "{{Discount Label}}" - Discount label (product_choice)
+   - "{{Cart List}}" - Cart products list (purchase_offer)
+   - "{{Purchase Link}}" - Purchase link (purchase_offer)
+   - "{{Personalized Products}}" - Personalized products (product_choice automatic)
+   - "{{VIP Product List}}" - VIP product list
+
+13. **ID Generation**: Generate unique, human-readable IDs for every node (e.g., "welcome-message", "vip-check", "cart-reminder").
+
+14. **Reference Integrity**:
    - `initialStepID` must point to the ID of the first node in the steps array
    - Every `nextStepID` must reference an existing node ID within the same workflow
    - Ensure no orphaned nodes - all nodes must be reachable from the initial step
 
-12. **Flow Completeness**: Every branch must eventually lead to an END node. No dead ends.
+15. **Flow Completeness**: Every branch must eventually lead to an END node. No dead ends.
 
-13. **Marketing Best Practices**:
+16. **Marketing Best Practices**:
    - Use personalization variables like {{first_name}}, {{brand_name}}
    - Keep messages concise and engaging
    - Include appropriate delays (typically 1-24 hours)
@@ -1430,21 +1487,13 @@ Remember: Your output must be perfect, valid JSON that follows the FlowBuilder f
     def _get_flowbuilder_node_types(self) -> str:
         """Get summary of available FlowBuilder node types."""
         type_descriptions = {
-            "message": "Send SMS messages with content, events, and branching",
-            "segment": "Audience segmentation with conditions",
-            "delay": "Time delays before next step",
-            "schedule": "Scheduled time-based branching",
-            "experiment": "A/B testing with groups",
-            "rate_limit": "Rate limiting controls",
-            "reply": "Handle specific reply intents",
-            "no_reply": "Handle no-reply timeouts",
-            "split": "Branching logic (include/exclude)",
-            "property": "Customer property management",
-            "product_choice": "Product selection for purchase",
-            "purchase_offer": "Purchase offers with cart",
-            "purchase": "Direct purchase processing",
-            "limit": "Usage limits",
-            "end": "Flow termination"
+            "message": "Send SMS message",
+            "segment": "Customer segmentation",
+            "delay": "Create delay",
+            "product_choice": "Product selection",
+            "purchase_offer": "Send purchase offer",
+            "purchase": "Process order",
+            "end": "End flow"
         }
 
         summary = []

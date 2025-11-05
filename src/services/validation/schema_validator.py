@@ -180,19 +180,9 @@ class SchemaValidator:
             "message": {"type", "content", "text"},
             "segment": {"type", "conditions"},
             "delay": {"type", "time", "period"},
-            "schedule": {"type", "schedule"},
-            "experiment": {"type", "experimentName"},
-            "rate_limit": {"type", "occurrences", "timespan", "period"},
-            "reply": {"type", "intent"},
-            "no_reply": {"type", "value", "unit"},
-            "split": {"type", "label", "action"},
-            "split_group": {"type", "label"},
-            "split_range": {"type", "label"},
-            "property": {"type", "properties"},
             "product_choice": {"type", "messageText"},
             "purchase_offer": {"type", "messageText", "cartSource"},
             "purchase": {"type", "cartSource"},
-            "limit": {"type", "occurrences", "timespan", "period"},
             "end": {"type", "label"},
         }
 
@@ -330,21 +320,19 @@ class SchemaValidator:
                 node_issues.extend(self._validate_purchase_offer_node(node, corrected_node, i))
             elif node_type == "purchase":
                 node_issues.extend(self._validate_purchase_node(node, corrected_node, i))
-            elif node_type == "rate_limit":
-                node_issues.extend(self._validate_rate_limit_node(node, corrected_node, i))
-            elif node_type == "limit":
-                node_issues.extend(self._validate_limit_node(node, corrected_node, i))
-            elif node_type == "reply":
-                node_issues.extend(self._validate_reply_node(node, corrected_node, i))
-            elif node_type == "no_reply":
-                node_issues.extend(self._validate_no_reply_node(node, corrected_node, i))
-            elif node_type == "split":
-                node_issues.extend(self._validate_split_node(node, corrected_node, i))
-            elif node_type == "property":
-                node_issues.extend(self._validate_property_node(node, corrected_node, i))
-            elif node_type in ["experiment", "schedule", "end"]:
-                # Basic validation for other node types
+            elif node_type == "end":
+                # Basic validation for end node
                 node_issues.extend(self._validate_generic_node(node, corrected_node, i))
+            else:
+                # Unknown node type - add error
+                issues.append(ValidationIssue(
+                    code="UNKNOWN_NODE_TYPE",
+                    message=f"Unknown node type: {node_type}. Valid types are: message, segment, delay, product_choice, purchase_offer, purchase, end",
+                    severity="error",
+                    node_id=node.get("id", f"node-{i}"),
+                    field_path=f"steps[{i}].type",
+                    suggested_fix="Use one of the valid node types"
+                ))
 
             # Validate events
             if "events" in node:
@@ -1206,6 +1194,16 @@ class SchemaValidator:
             corrected_node["content"] = "Display content: Customer Property Step"
 
         return issues
+
+    def _validate_split_group_node(self, node: Dict[str, Any], corrected_node: Dict[str, Any], index: int) -> List[ValidationIssue]:
+        """Validate split group node."""
+        # Split group node has same structure as split node but used for experiment branches
+        return self._validate_split_node(node, corrected_node, index)
+
+    def _validate_split_range_node(self, node: Dict[str, Any], corrected_node: Dict[str, Any], index: int) -> List[ValidationIssue]:
+        """Validate split range node."""
+        # Split range node has same structure as split node but used for schedule branches
+        return self._validate_split_node(node, corrected_node, index)
 
     def _validate_generic_node(self, node: Dict[str, Any], corrected_node: Dict[str, Any], index: int) -> List[ValidationIssue]:
         """Validate generic node types (experiment, schedule, end)."""

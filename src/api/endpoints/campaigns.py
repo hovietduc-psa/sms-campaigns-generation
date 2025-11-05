@@ -5,6 +5,7 @@ This module provides the main API endpoints for campaign generation,
 integrating LLM generation, validation, and orchestration services.
 """
 
+import asyncio
 import time
 from typing import Dict, Any, Optional
 
@@ -16,9 +17,11 @@ from src.core.logging import get_logger, CampaignLogger
 from src.models.requests import CampaignGenerationRequest, CampaignGenerationResponse
 from src.services.campaign_generation.orchestrator import get_campaign_orchestrator, CampaignOrchestrator
 from src.services.validation.reporting import get_validation_reporter
+from src.services.database.campaign_logger import get_database_logger
 
 logger = get_logger(__name__)
 campaign_logger = CampaignLogger()
+database_logger = get_database_logger()
 security = HTTPBearer(auto_error=False)
 
 router = APIRouter()
@@ -107,27 +110,46 @@ async def generate_campaign_flow(
         if result.success:
             response_data = result.to_dict()
 
-            # Log successful generation
-            if result.validation_summary:
-                campaign_logger.log_generation_success(
+            # Extract metadata for logging
+            tokens_used = result.metadata.get("parse_metadata", {}).get("parsing_metadata", {}).get("tokens_used", 0)
+            generation_time_ms = result.metadata.get("total_time_ms", 0)
+            model_used = result.metadata.get("model_used", "unknown")
+            node_count = len(response_data.get("steps", []))
+            validation_issues = result.validation_summary.total_issues if result.validation_summary else 0
+            corrections_applied = result.validation_summary.corrections_applied if result.validation_summary else 0
+            quality_score = result.validation_summary.quality_score if result.validation_summary else None
+
+            # Log successful generation to file/console
+            campaign_logger.log_generation_success(
+                campaign_id=result.campaign_id,
+                generation_time_ms=generation_time_ms,
+                tokens_used=tokens_used,
+                model_used=model_used,
+                node_count=node_count,
+                request_id=request_id,
+                user_id=current_user,
+            )
+
+            # Log successful generation to database
+            try:
+                await database_logger.log_campaign_generation(
                     campaign_id=result.campaign_id,
-                    generation_time_ms=result.metadata.get("total_time_ms", 0),
-                    tokens_used=result.metadata.get("parse_metadata", {}).get("parsing_metadata", {}).get("tokens_used", 0),
-                    model_used=result.metadata.get("model_used", "unknown"),
-                    node_count=len(response_data.get("steps", [])),
                     request_id=request_id,
                     user_id=current_user,
+                    campaign_description=request.campaignDescription,
+                    generated_flow=response_data,
+                    generation_time_ms=int(generation_time_ms) if generation_time_ms else None,
+                    tokens_used=tokens_used,
+                    model_used=model_used,
+                    status="success",
+                    node_count=node_count,
+                    validation_issues=validation_issues,
+                    corrections_applied=corrections_applied,
+                    quality_score=quality_score,
                 )
-            else:
-                campaign_logger.log_generation_success(
-                    campaign_id=result.campaign_id,
-                    generation_time_ms=result.metadata.get("total_time_ms", 0),
-                    tokens_used=0,
-                    model_used=result.metadata.get("model_used", "unknown"),
-                    node_count=len(response_data.get("steps", [])),
-                    request_id=request_id,
-                    user_id=current_user,
-                )
+                logger.info(f"Campaign logged to database: {result.campaign_id}")
+            except Exception as db_error:
+                logger.error(f"Failed to log campaign to database: {db_error}", exc_info=True)
 
             # Create validation report if issues exist
             if result.validation_summary and result.validation_summary.total_issues > 0:
@@ -157,12 +179,35 @@ async def generate_campaign_flow(
 
         else:
             # Generation failed
+            error_message = result.errors[0] if result.errors else "Unknown error"
             campaign_logger.log_generation_error(
-                error=result.errors[0] if result.errors else "Unknown error",
+                error=error_message,
                 generation_time_ms=result.metadata.get("total_time_ms", 0),
                 request_id=request_id,
                 user_id=current_user,
             )
+
+            # Log failed generation to database
+            try:
+                await database_logger.log_campaign_generation(
+                    campaign_id=result.campaign_id,
+                    request_id=request_id,
+                    user_id=current_user,
+                    campaign_description=request.campaignDescription,
+                    generated_flow={},  # Empty flow for failed generation
+                    generation_time_ms=int(result.metadata.get("total_time_ms", 0)) if result.metadata.get("total_time_ms") else None,
+                    tokens_used=None,
+                    model_used=result.metadata.get("model_used", "unknown"),
+                    status="error",
+                    error_message=error_message,
+                    node_count=None,
+                    validation_issues=None,
+                    corrections_applied=None,
+                    quality_score=None,
+                )
+                logger.info(f"Failed campaign logged to database: {result.campaign_id}")
+            except Exception as db_error:
+                logger.error(f"Failed to log failed campaign to database: {db_error}", exc_info=True)
 
             # Determine appropriate HTTP status
             if "validation" in str(result.errors).lower():
@@ -189,12 +234,35 @@ async def generate_campaign_flow(
 
     except Exception as e:
         # Log unexpected error
+        generation_time = (time.time() - start_time) * 1000
         campaign_logger.log_generation_error(
             error=str(e),
-            generation_time_ms=(time.time() - start_time) * 1000,
+            generation_time_ms=generation_time,
             request_id=request_id,
             user_id=current_user,
         )
+
+        # Log unexpected error to database
+        try:
+            await database_logger.log_campaign_generation(
+                campaign_id="unknown",
+                request_id=request_id,
+                user_id=current_user,
+                campaign_description=request.campaignDescription,
+                generated_flow={},  # Empty flow for failed generation
+                generation_time_ms=int(generation_time),
+                tokens_used=None,
+                model_used="unknown",
+                status="error",
+                error_message=str(e),
+                node_count=None,
+                validation_issues=None,
+                corrections_applied=None,
+                quality_score=None,
+            )
+            logger.info(f"Unexpected error logged to database: {request_id}")
+        except Exception as db_error:
+            logger.error(f"Failed to log unexpected error to database: {db_error}", exc_info=True)
 
         logger.error(
             f"Unexpected error in generate_campaign_flow: {e}",

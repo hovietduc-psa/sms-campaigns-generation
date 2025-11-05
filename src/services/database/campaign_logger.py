@@ -41,11 +41,10 @@ class DatabaseLogger:
     async def is_healthy(self) -> bool:
         """Check if database connection is healthy."""
         try:
-            async with asyncio.timeout(self._timeout):
-                async for session in get_db_session():
-                    # Simple query to test connection
-                    await session.execute(select(func.now()))
-                    return True
+            async for session in get_db_session():
+                # Simple query to test connection
+                await session.execute(select(func.now()))
+                return True
         except Exception as e:
             logger.warning(f"Database health check failed: {e}")
             return False
@@ -125,12 +124,11 @@ class DatabaseLogger:
         """Save campaign log to database with retry logic."""
         for attempt in range(self._retry_attempts):
             try:
-                async with asyncio.timeout(self._timeout):
-                    async for session in get_db_session():
-                        session.add(campaign_log)
-                        await session.commit()
-                        logger.info(f"Campaign log saved successfully: {campaign_log.request_id}")
-                        return True
+                async for session in get_db_session():
+                    session.add(campaign_log)
+                    await session.commit()
+                    logger.info(f"Campaign log saved successfully: {campaign_log.request_id}")
+                    return True
             except Exception as e:
                 if attempt < self._retry_attempts - 1:
                     logger.warning(f"Database save attempt {attempt + 1} failed: {e}, retrying...")
@@ -179,67 +177,71 @@ class DatabaseLogger:
 
             for attempt in range(2):  # Fewer retries for metrics
                 try:
-                    async with asyncio.timeout(3.0):  # Shorter timeout for metrics
-                        async for session in get_db_session():
-                            # Get or create today's metrics
-                            stmt = select(CampaignMetrics).where(CampaignMetrics.date == today)
-                            result = await session.execute(stmt)
-                            metrics = result.scalar_one_or_none()
+                    async for session in get_db_session():
+                        # Get or create today's metrics
+                        stmt = select(CampaignMetrics).where(CampaignMetrics.date == today)
+                        result = await session.execute(stmt)
+                        metrics = result.scalar_one_or_none()
 
-                            if not metrics:
-                                metrics = CampaignMetrics(date=today)
-                                session.add(metrics)
+                        if not metrics:
+                            metrics = CampaignMetrics(date=today)
+                            session.add(metrics)
 
-                            # Update metrics
-                            metrics.total_requests += 1
+                        # Update metrics
+                        metrics.total_requests += 1
 
-                            if status == "success":
-                                metrics.successful_generations += 1
-                            elif status == "error":
-                                metrics.failed_generations += 1
+                        if status == "success":
+                            metrics.successful_generations += 1
+                        elif status == "error":
+                            metrics.failed_generations += 1
+                        else:
+                            metrics.partial_generations += 1
+
+                        # Update averages
+                        if generation_time_ms:
+                            if metrics.average_generation_time_ms:
+                                metrics.average_generation_time_ms = (
+                                    metrics.average_generation_time_ms + generation_time_ms
+                                ) / 2
                             else:
-                                metrics.partial_generations += 1
+                                metrics.average_generation_time_ms = generation_time_ms
 
-                            # Update averages
-                            if generation_time_ms:
-                                if metrics.average_generation_time_ms:
-                                    metrics.average_generation_time_ms = (
-                                        metrics.average_generation_time_ms + generation_time_ms
-                                    ) / 2
-                                else:
-                                    metrics.average_generation_time_ms = generation_time_ms
+                        if tokens_used:
+                            if metrics.average_tokens_used:
+                                metrics.average_tokens_used = (
+                                    metrics.average_tokens_used + tokens_used
+                                ) / 2
+                            else:
+                                metrics.average_tokens_used = tokens_used
 
-                            if tokens_used:
-                                if metrics.average_tokens_used:
-                                    metrics.average_tokens_used = (
-                                        metrics.average_tokens_used + tokens_used
-                                    ) / 2
-                                else:
-                                    metrics.average_tokens_used = tokens_used
+                        if quality_score:
+                            if metrics.average_quality_score:
+                                metrics.average_quality_score = (
+                                    metrics.average_quality_score + quality_score
+                                ) / 2
+                            else:
+                                metrics.average_quality_score = quality_score
 
-                            if quality_score:
-                                if metrics.average_quality_score:
-                                    metrics.average_quality_score = (
-                                        metrics.average_quality_score + quality_score
-                                    ) / 2
-                                else:
-                                    metrics.average_quality_score = quality_score
+                        # Update model usage
+                        if model_used:
+                            if not metrics.model_usage:
+                                metrics.model_usage = {}
+                            model_usage = dict(metrics.model_usage)
+                            model_usage[model_used] = model_usage.get(model_used, 0) + 1
+                            metrics.model_usage = model_usage
 
-                            # Update model usage
-                            if model_used:
-                                if not metrics.model_usage:
-                                    metrics.model_usage = {}
-                                model_usage = dict(metrics.model_usage)
-                                model_usage[model_used] = model_usage.get(model_used, 0) + 1
-                                metrics.model_usage = model_usage
+                        # Update counts
+                        if metrics.total_nodes_generated is None:
+                            metrics.total_nodes_generated = 0
+                        if metrics.total_validation_issues is None:
+                            metrics.total_validation_issues = 0
 
-                            # Update counts
-                            metrics.total_nodes_generated += node_count
-                            metrics.total_validation_issues += validation_issues
+                        metrics.total_nodes_generated += node_count
+                        metrics.total_validation_issues += validation_issues
 
-                            await session.commit()
-                            logger.debug(f"Daily metrics updated for {today}")
-                            return
+                        await session.commit()
+                        logger.debug(f"Daily metrics updated for {today}")
+                        return
 
                 except Exception as e:
                     if attempt == 0:
@@ -298,12 +300,11 @@ class DatabaseLogger:
                 would_use_again=would_use_again,
             )
 
-            async with asyncio.timeout(self._timeout):
-                async for session in get_db_session():
-                    session.add(feedback)
-                    await session.commit()
-                    logger.info(f"User feedback saved for campaign: {campaign_log_id}")
-                    return True
+            async for session in get_db_session():
+                session.add(feedback)
+                await session.commit()
+                logger.info(f"User feedback saved for campaign: {campaign_log_id}")
+                return True
 
         except Exception as e:
             logger.error(f"Failed to save user feedback: {e}")
@@ -321,28 +322,27 @@ class DatabaseLogger:
     ) -> List[CampaignLog]:
         """Retrieve campaign logs with filtering options."""
         try:
-            async with asyncio.timeout(10.0):
-                async for session in get_db_session():
-                    query = select(CampaignLog)
+            async for session in get_db_session():
+                query = select(CampaignLog)
 
-                    # Apply filters
-                    if user_id:
-                        query = query.where(CampaignLog.user_id == user_id)
-                    if status:
-                        query = query.where(CampaignLog.status == status)
-                    if model_used:
-                        query = query.where(CampaignLog.model_used == model_used)
-                    if date_from:
-                        query = query.where(CampaignLog.created_at >= date_from)
-                    if date_to:
-                        query = query.where(CampaignLog.created_at <= date_to)
+                # Apply filters
+                if user_id:
+                    query = query.where(CampaignLog.user_id == user_id)
+                if status:
+                    query = query.where(CampaignLog.status == status)
+                if model_used:
+                    query = query.where(CampaignLog.model_used == model_used)
+                if date_from:
+                    query = query.where(CampaignLog.created_at >= date_from)
+                if date_to:
+                    query = query.where(CampaignLog.created_at <= date_to)
 
-                    # Order and paginate
-                    query = query.order_by(CampaignLog.created_at.desc())
-                    query = query.offset(offset).limit(limit)
+                # Order and paginate
+                query = query.order_by(CampaignLog.created_at.desc())
+                query = query.offset(offset).limit(limit)
 
-                    result = await session.execute(query)
-                    return list(result.scalars().all())
+                result = await session.execute(query)
+                return list(result.scalars().all())
 
         except Exception as e:
             logger.error(f"Failed to retrieve campaign logs: {e}")
@@ -351,14 +351,13 @@ class DatabaseLogger:
     async def get_daily_metrics(self, days: int = 30) -> List[CampaignMetrics]:
         """Retrieve daily metrics for the specified number of days."""
         try:
-            async with asyncio.timeout(5.0):
-                async for session in get_db_session():
-                    query = select(CampaignMetrics).where(
-                        CampaignMetrics.date >= date.today() - timedelta(days=days)
-                    ).order_by(CampaignMetrics.date.desc())
+            async for session in get_db_session():
+                query = select(CampaignMetrics).where(
+                    CampaignMetrics.date >= date.today() - timedelta(days=days)
+                ).order_by(CampaignMetrics.date.desc())
 
-                    result = await session.execute(query)
-                    return list(result.scalars().all())
+                result = await session.execute(query)
+                return list(result.scalars().all())
 
         except Exception as e:
             logger.error(f"Failed to retrieve daily metrics: {e}")
