@@ -220,6 +220,13 @@ class AutoCorrector:
                 risk_level="medium",
                 description="Fix broken event references"
             ),
+            "DUPLICATE_NEXT_STEP_ID": CorrectionStrategy(
+                issue_code="DUPLICATE_NEXT_STEP_ID",
+                auto_correct=True,
+                requires_user_confirmation=False,
+                risk_level="low",
+                description="Create unique end nodes for duplicate nextStepID references"
+            ),
             "ORPHANED_NODE": CorrectionStrategy(
                 issue_code="ORPHANED_NODE",
                 auto_correct=False,
@@ -231,6 +238,13 @@ class AutoCorrector:
             # Flow issues
             "NO_TERMINATION": CorrectionStrategy(
                 issue_code="NO_TERMINATION",
+                auto_correct=True,
+                requires_user_confirmation=False,
+                risk_level="medium",
+                description="Add end node to flow"
+            ),
+            "MISSING_END_NODE": CorrectionStrategy(
+                issue_code="MISSING_END_NODE",
                 auto_correct=True,
                 requires_user_confirmation=False,
                 risk_level="medium",
@@ -869,6 +883,11 @@ class AutoCorrector:
             "corrected_data": flow_data
         }
 
+    def _correct_missing_end_node(self, issue: ValidationIssue, flow_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Add END node when missing_end_node error is detected."""
+        logger.info("Auto-correcting missing END node issue")
+        return self._correct_no_termination(issue, flow_data)
+
     def _correct_empty_message_content(self, issue: ValidationIssue, flow_data: Dict[str, Any]) -> Dict[str, Any]:
         """Correct empty message content."""
         return self._correct_missing_message_content(issue, flow_data)
@@ -931,6 +950,80 @@ class AutoCorrector:
             for event in step.get("events", []):
                 if event.get("nextStepID") == old_id:
                     event["nextStepID"] = new_id
+
+    def _correct_duplicate_next_step_id(self, issue: ValidationIssue, flow_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Correct duplicate nextStepID values by creating unique end nodes for each reference.
+
+        This auto-correction creates unique end nodes (e.g., end-node-001, end-node-002)
+        for each event that points to the same nextStepID, ensuring FlowBuilder compliance.
+        """
+        if not issue.value:
+            return {
+                "success": False,
+                "message": "No nextStepID value provided for correction",
+                "corrected_data": flow_data
+            }
+
+        duplicate_nextstepid = issue.value
+        steps = flow_data.get("steps", [])
+        events_to_correct = []
+
+        # Find all events that reference the duplicate nextStepID
+        for step in steps:
+            for event in step.get("events", []):
+                if event.get("nextStepID") == duplicate_nextstepid:
+                    events_to_correct.append({
+                        "step_id": step.get("id"),
+                        "event": event,
+                        "step": step
+                    })
+
+        if len(events_to_correct) <= 1:
+            # No correction needed
+            return {
+                "success": True,
+                "message": "No duplicate nextStepID found, no correction needed",
+                "corrected_data": flow_data
+            }
+
+        # Create unique end nodes for each event (except the first one)
+        original_end_node = None
+        for i, event_info in enumerate(events_to_correct):
+            step = event_info["step"]
+            event = event_info["event"]
+
+            if i == 0:
+                # Keep the first event pointing to the original node
+                # Find the original end node
+                for s in steps:
+                    if s.get("id") == duplicate_nextstepid:
+                        original_end_node = s
+                        break
+                continue
+
+            # Create a unique end node for this event
+            unique_end_id = f"{duplicate_nextstepid}-{i:03d}"
+            unique_end_node = {
+                "id": unique_end_id,
+                "type": "end",
+                "name": f"End Node {i}",
+                "events": []
+            }
+
+            # Add the new end node to the flow
+            steps.append(unique_end_node)
+
+            # Update the event to point to the unique end node
+            event["nextStepID"] = unique_end_id
+
+            logger.info(f"Created unique end node '{unique_end_id}' for event '{event.get('id')}' in step '{step.get('id')}'")
+
+        return {
+            "success": True,
+            "message": f"Created {len(events_to_correct) - 1} unique end nodes for duplicate nextStepID '{duplicate_nextstepid}'",
+            "corrected_data": flow_data
+        }
 
     def get_correction_history(self) -> List[Dict[str, Any]]:
         """Get history of correction attempts."""

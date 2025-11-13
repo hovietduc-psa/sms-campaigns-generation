@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GenerateFlow API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .form-section, .response-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: inherit;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-right: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
+        }
+
+        .response-container {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .response-header {
+            background: #343a40;
+            color: white;
+            padding: 12px 20px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .response-content {
+            padding: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .response-content pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 0;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-error {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-loading {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .templates {
+            margin-bottom: 20px;
+        }
+
+        .template-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: background 0.3s ease;
+        }
+
+        .template-btn:hover {
+            background: #5a6268;
+        }
+
+        .api-config {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>GenerateFlow API Tester</h1>
+            <p>Test your SMS Campaign Generation API</p>
+        </div>
+
+        <div class="content">
+            <!-- API Configuration -->
+            <div class="api-config">
+                <div class="form-group">
+                    <label for="apiUrl">API URL:</label>
+                    <input type="text" id="apiUrl" value="http://localhost:8008/api/v1/generateFlow" placeholder="Enter API URL">
+                </div>
+                <div class="form-group">
+                    <label for="apiKey">API Key:</label>
+                    <input type="text" id="apiKey" value="sk-9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8" placeholder="Enter API Key">
+                </div>
+            </div>
+
+            <!-- Form Section -->
+            <div class="form-section">
+                <h2 class="section-title">Campaign Request</h2>
+
+                <!-- Quick Templates -->
+                <div class="templates">
+                    <label>Quick Templates:</label>
+                    <button class="template-btn" onclick="loadTemplate('welcome')">Welcome Message</button>
+                    <button class="template-btn" onclick="loadTemplate('cart')">Abandoned Cart</button>
+                    <button class="template-btn" onclick="loadTemplate('promotion')">Promotional Campaign</button>
+                    <button class="template-btn" onclick="loadTemplate('onboarding')">User Onboarding</button>
+                    <button class="template-btn" onclick="loadTemplate('retention')">Customer Retention</button>
+                </div>
+
+                <form id="apiForm">
+                    <div class="form-group">
+                        <label for="campaignDescription">Campaign Description *</label>
+                        <textarea id="campaignDescription" name="campaignDescription" placeholder="Describe your SMS campaign..." required></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tone">Tone</label>
+                            <select id="tone" name="tone">
+                                <option value="friendly">Friendly</option>
+                                <option value="professional">Professional</option>
+                                <option value="casual">Casual</option>
+                                <option value="formal">Formal</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="maxLength">Max Length</label>
+                            <input type="number" id="maxLength" name="maxLength" value="2000" min="100" max="10000">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="priority">Priority</label>
+                            <select id="priority" name="priority">
+                                <option value="normal">Normal</option>
+                                <option value="high">High</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 30px;">
+                        <button type="submit" class="btn" id="submitBtn">
+                            Generate Campaign
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="clearForm()">
+                            Clear Form
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="testApiHealth()">
+                            Test API Health
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Response Section -->
+            <div class="response-section">
+                <h2 class="section-title">API Response</h2>
+
+                <div class="response-container">
+                    <div class="response-header">
+                        <span id="responseStatus">No response yet</span>
+                        <span id="responseIndicator"></span>
+                    </div>
+                    <div class="response-content">
+                        <pre id="responseContent">Submit the form to see the API response...</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Template configurations
+        const templates = {
+            welcome: {
+                campaignDescription: "Create a simple welcome message for new users who have just signed up. The message should thank them for joining and provide a brief overview of what they can expect.",
+                tone: "friendly",
+                maxLength: 2000,
+                priority: "normal"
+            },
+            cart: {
+                campaignDescription: "Create an abandoned cart recovery campaign. Send a reminder to users who have added items to their cart but haven't completed the purchase within 2 hours. Include a gentle encouragement to complete their purchase.",
+                tone: "professional",
+                maxLength: 3000,
+                priority: "high"
+            },
+            promotion: {
+                campaignDescription: "Create a promotional campaign for a weekend sale. Announce a 25% discount on all products and create urgency by mentioning the sale ends Sunday midnight. Include a call-to-action to shop now.",
+                tone: "urgent",
+                maxLength: 2500,
+                priority: "high"
+            },
+            onboarding: {
+                campaignDescription: "Create a 3-step user onboarding campaign: 1) Welcome message, 2) Feature introduction after 1 day, 3) Getting started guide after 2 days. Each message should build on the previous one.",
+                tone: "friendly",
+                maxLength: 5000,
+                priority: "normal"
+            },
+            retention: {
+                campaignDescription: "Create a customer retention campaign for users who haven't engaged in 30 days. Send a re-engagement message with a special offer to encourage them to return.",
+                tone: "professional",
+                maxLength: 3000,
+                priority: "normal"
+            }
+        };
+
+        // Load template
+        function loadTemplate(templateName) {
+            const template = templates[templateName];
+            if (template) {
+                document.getElementById('campaignDescription').value = template.campaignDescription;
+                document.getElementById('tone').value = template.tone;
+                document.getElementById('maxLength').value = template.maxLength;
+                document.getElementById('priority').value = template.priority;
+            }
+        }
+
+        // Clear form
+        function clearForm() {
+            document.getElementById('apiForm').reset();
+            document.getElementById('campaignDescription').value = '';
+            updateResponse('No response yet', '', 'neutral');
+        }
+
+        // Update response display
+        function updateResponse(statusText, content, status = 'neutral') {
+            const statusElement = document.getElementById('responseStatus');
+            const indicatorElement = document.getElementById('responseIndicator');
+            const contentElement = document.getElementById('responseContent');
+
+            statusElement.textContent = statusText;
+
+            // Update status indicator
+            indicatorElement.className = '';
+            if (status === 'loading') {
+                indicatorElement.innerHTML = '<div class="loading"></div>Loading...';
+            } else if (status === 'success') {
+                indicatorElement.className = 'status-indicator status-success';
+                indicatorElement.textContent = 'Success';
+            } else if (status === 'error') {
+                indicatorElement.className = 'status-indicator status-error';
+                indicatorElement.textContent = 'Error';
+            } else {
+                indicatorElement.textContent = '';
+            }
+
+            // Update content
+            if (content) {
+                contentElement.textContent = content;
+            }
+        }
+
+        // Test API health
+        async function testApiHealth() {
+            const apiUrl = document.getElementById('apiUrl').value.replace('/api/v1/generateFlow', '/health');
+
+            updateResponse('Testing API health...', '', 'loading');
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    updateResponse(
+                        `API is healthy (Status: ${response.status})`,
+                        JSON.stringify(data, null, 2),
+                        'success'
+                    );
+                } else {
+                    updateResponse(
+                        `API health check failed (Status: ${response.status})`,
+                        JSON.stringify(data, null, 2),
+                        'error'
+                    );
+                }
+            } catch (error) {
+                updateResponse(
+                    'Connection failed',
+                    `Error: ${error.message}`,
+                    'error'
+                );
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('apiForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const originalBtnText = submitBtn.innerHTML;
+
+            // Disable button and show loading
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="loading"></div>Generating...';
+            updateResponse('Generating campaign...', '', 'loading');
+
+            try {
+                const apiUrl = document.getElementById('apiUrl').value;
+                const apiKey = document.getElementById('apiKey').value;
+
+                const formData = {
+                    campaignDescription: document.getElementById('campaignDescription').value,
+                    tone: document.getElementById('tone').value,
+                    maxLength: parseInt(document.getElementById('maxLength').value),
+                    priority: document.getElementById('priority').value
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const responseData = await response.text();
+
+                if (response.ok) {
+                    updateResponse(
+                        `Success (Status: ${response.status})`,
+                        responseData,
+                        'success'
+                    );
+                } else {
+                    updateResponse(
+                        `Error (Status: ${response.status})`,
+                        responseData,
+                        'error'
+                    );
+                }
+
+            } catch (error) {
+                updateResponse(
+                    'Request failed',
+                    `Error: ${error.message}`,
+                    'error'
+                );
+            } finally {
+                // Restore button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+            }
+        });
+
+        // Test API health on page load
+        window.addEventListener('load', function() {
+            setTimeout(testApiHealth, 1000);
+        });
+    </script>
+</body>
+</html>

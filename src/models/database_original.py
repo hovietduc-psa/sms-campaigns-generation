@@ -1,5 +1,5 @@
 """
-Database models for SMS Campaign Generation System - Updated to match existing database schema.
+Database models for SMS Campaign Generation System.
 """
 
 from datetime import date, datetime
@@ -15,104 +15,132 @@ from src.core.database import Base
 
 
 class CampaignLog(Base):
-    """Model for storing AI campaign generation logs - Updated to match ai_ schema."""
+    """Model for storing campaign generation logs."""
 
-    __tablename__ = "ai_campaign_logs"
+    __tablename__ = "campaign_logs"
 
-    id: Mapped[str] = mapped_column(
-        "id",
-        String(255),
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid4()),
+        default=uuid4,
         comment="Unique identifier for the campaign log"
     )
 
     campaign_id: Mapped[str] = mapped_column(
-        "campaign_id",
         String(255),
         nullable=False,
         index=True,
         comment="Campaign identifier from generation process"
     )
 
-    status: Mapped[str] = mapped_column(
-        "status",
-        String(50),
+    request_id: Mapped[str] = mapped_column(
+        String(255),
         nullable=False,
+        unique=True,
         index=True,
-        comment="Generation status: success, error, partial"
+        comment="Unique request identifier"
     )
 
-    campaignDescription: Mapped[str] = mapped_column(
-        "campaignDescription",
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="User identifier who requested the campaign"
+    )
+
+    campaign_description: Mapped[str] = mapped_column(
         Text,
         nullable=False,
         comment="Original campaign description from user"
     )
 
-    errorMessage: Mapped[Optional[str]] = mapped_column(
-        "errorMessage",
-        Text,
-        nullable=True,
-        comment="Error message if generation failed"
-    )
-
-    generatedFlow: Mapped[Dict[str, Any]] = mapped_column(
-        "generatedFlow",
+    generated_flow: Mapped[Dict[str, Any]] = mapped_column(
         JSON,
         nullable=False,
         comment="Complete generated campaign flow JSON"
     )
 
-    generationTimeMs: Mapped[Optional[int]] = mapped_column(
-        "generationTimeMs",
+    generation_time_ms: Mapped[Optional[int]] = mapped_column(
         Integer,
         nullable=True,
         comment="Total generation time in milliseconds"
     )
 
-    modelUsed: Mapped[Optional[str]] = mapped_column(
-        "modelUsed",
+    tokens_used: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Total tokens used for LLM generation"
+    )
+
+    model_used: Mapped[Optional[str]] = mapped_column(
         String(100),
         nullable=True,
         index=True,
         comment="LLM model used for generation"
     )
 
-    tokensUsed: Mapped[Optional[int]] = mapped_column(
-        "tokensUsed",
-        Integer,
-        nullable=True,
-        comment="Total tokens used for LLM generation"
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        index=True,
+        comment="Generation status: success, error, partial"
     )
 
-    # Fix: Map snake_case attribute to camelCase column
+    error_message: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Error message if generation failed"
+    )
+
+    node_count: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Number of nodes in generated campaign"
+    )
+
+    validation_issues: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        default=0,
+        comment="Number of validation issues found"
+    )
+
+    corrections_applied: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        default=0,
+        comment="Number of auto-corrections applied"
+    )
+
+    quality_score: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Campaign quality score (0-100)"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
-        "createdAt",
-        DateTime(timezone=False),
+        DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+        index=True,
         comment="Timestamp when campaign was created"
     )
 
     updated_at: Mapped[datetime] = mapped_column(
-        "updatedAt",
-        DateTime(timezone=False),
+        DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
-        default=datetime.utcnow,
         comment="Timestamp when record was last updated"
     )
 
 
 class CampaignMetrics(Base):
-    """Model for storing daily AI campaign generation metrics - Updated to match ai_ schema."""
+    """Model for storing daily campaign generation metrics."""
 
-    __tablename__ = "ai_campaign_metrics"
+    __tablename__ = "campaign_metrics"
 
     id: Mapped[str] = mapped_column(
-        "id",
         String(255),
         primary_key=True,
         default=lambda: str(uuid4()),
@@ -120,36 +148,20 @@ class CampaignMetrics(Base):
     )
 
     date: Mapped[datetime] = mapped_column(
-        "date",
         DateTime(timezone=False),
         nullable=False,
         server_default=func.now(),
         comment="Date for which metrics are collected"
     )
 
-    averageGenerationTimeMs: Mapped[Optional[float]] = mapped_column(
-        "averageGenerationTimeMs",
-        Float(precision=53),
-        nullable=True,
-        comment="Average generation time in milliseconds"
-    )
-
-    averageTokensUsed: Mapped[Optional[float]] = mapped_column(
-        "averageTokensUsed",
-        Float(precision=53),
-        nullable=True,
-        comment="Average tokens used per generation"
-    )
-
-    modelUsage: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        "modelUsage",
-        JSON,
-        nullable=True,
-        comment="Usage statistics broken down by model"
+    totalRequests: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Total number of campaign generation requests"
     )
 
     successfulGenerations: Mapped[int] = mapped_column(
-        "successfulGenerations",
         Integer,
         nullable=False,
         default=0,
@@ -157,130 +169,136 @@ class CampaignMetrics(Base):
     )
 
     failedGenerations: Mapped[int] = mapped_column(
-        "failedGenerations",
         Integer,
         nullable=False,
         default=0,
         comment="Number of failed campaign generations"
     )
 
-    totalRequests: Mapped[int] = mapped_column(
-        "totalRequests",
-        Integer,
-        nullable=False,
-        default=0,
-        comment="Total number of campaign generation requests"
-    )
-
-    totalNodesGenerated: Mapped[Optional[int]] = mapped_column(
-        "totalNodesGenerated",
-        Integer,
-        nullable=True,
-        default=0,
-        comment="Total number of campaign nodes generated"
-    )
-
-    totalValidationIssues: Mapped[Optional[int]] = mapped_column(
-        "totalValidationIssues",
-        Integer,
-        nullable=True,
-        default=0,
-        comment="Total number of validation issues found"
-    )
-
-    averageQualityScore: Mapped[Optional[float]] = mapped_column(
-        "averageQualityScore",
-        Float(precision=53),
-        nullable=True,
-        comment="Average quality score of generated campaigns"
-    )
-
-    partialGenerations: Mapped[int] = mapped_column(
-        "partialGenerations",
+    partial_generations: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
         comment="Number of partial campaign generations"
     )
 
-    # Fix: Map snake_case attribute to camelCase column
+    average_generation_time_ms: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Average generation time in milliseconds"
+    )
+
+    average_tokens_used: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Average tokens used per generation"
+    )
+
+    average_quality_score: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Average quality score across all campaigns"
+    )
+
+    model_usage: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Usage statistics broken down by model"
+    )
+
+    total_nodes_generated: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Total number of campaign nodes generated"
+    )
+
+    total_validation_issues: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Total number of validation issues across all campaigns"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
-        "createdAt",
-        DateTime(timezone=False),
+        DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
-        default=datetime.utcnow,
         comment="Timestamp when metrics record was created"
     )
 
     updated_at: Mapped[datetime] = mapped_column(
-        "updatedAt",
-        DateTime(timezone=False),
+        DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
-        default=datetime.utcnow,
         comment="Timestamp when record was last updated"
     )
 
 
 class UserFeedback(Base):
-    """Model for storing user feedback on AI generated campaigns - Updated to match ai_ schema."""
+    """Model for storing user feedback on generated campaigns."""
 
-    __tablename__ = "ai_user_feedback"
+    __tablename__ = "user_feedback"
 
-    id: Mapped[str] = mapped_column(
-        "id",
-        String(255),
+    id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid4()),
+        default=uuid4,
         comment="Unique identifier for the feedback record"
     )
 
-    rating: Mapped[int] = mapped_column(
-        "rating",
-        Integer,
-        nullable=False,
-        comment="Rating from 1-5 provided by user"
-    )
-
-    issues: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        "issues",
-        JSON,
-        nullable=True,
-        comment="Specific issues reported in structured format"
-    )
-
-    campaignLogId: Mapped[str] = mapped_column(
-        "campaignLogId",
-        String(255),
+    campaign_log_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
         nullable=False,
         index=True,
         comment="Reference to the campaign log this feedback is for"
     )
 
-    # Fix: Map snake_case attribute to camelCase column
-    created_at: Mapped[datetime] = mapped_column(
-        "createdAt",
-        DateTime(timezone=False),
-        server_default=func.now(),
-        nullable=False,
-        default=datetime.utcnow,
-        comment="Timestamp when feedback was provided"
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="User who provided the feedback"
     )
 
-    feedbackText: Mapped[Optional[str]] = mapped_column(
-        "feedbackText",
+    rating: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Rating from 1-5 provided by user"
+    )
+
+    feedback_text: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
         comment="Text feedback provided by user"
     )
 
+    issues: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Specific issues reported in structured format"
+    )
+
+    would_use_again: Mapped[Optional[bool]] = mapped_column(
+        Boolean,
+        nullable=True,
+        comment="Whether user would use this campaign again"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+        comment="Timestamp when feedback was provided"
+    )
+
 
 class SystemMetrics(Base):
-    """Model for storing AI system performance and health metrics - Updated to match new ai_ schema."""
+    """Model for storing system performance and health metrics."""
 
-    __tablename__ = "ai_system_metrics"
+    __tablename__ = "system_metrics"
 
     id: Mapped[UUID] = mapped_column(
         PostgresUUID(as_uuid=True),

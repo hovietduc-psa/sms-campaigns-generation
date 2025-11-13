@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Application service
+  # Application service (development)
   app:
     build:
       context: .
@@ -9,51 +9,42 @@ services:
       target: development
     container_name: sms-campaign-app
     ports:
-      - "8000:8000"
+      - "8008:8008"
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/sms_campaigns
-      - REDIS_URL=redis://redis:6379/0
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - SECRET_KEY=${SECRET_KEY}
       - DEBUG=true
       - ENVIRONMENT=development
-      - LLM_PROVIDER=openrouter
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
-      - OPENROUTER_MAX_TOKENS=${OPENROUTER_MAX_TOKENS}
-      - OPENROUTER_TEMPERATURE=${OPENROUTER_TEMPERATURE}
-      - OPENROUTER_TIMEOUT=${OPENROUTER_TIMEOUT}
     volumes:
       - ./src:/app/src
       - ./logs:/app/logs
-    depends_on:
-      - db
-      - redis
     networks:
       - sms-campaign-network
     restart: unless-stopped
+    profiles:
+      - development
 
   # PostgreSQL database
-  db:
-    image: postgres:15-alpine
-    container_name: sms-campaign-db
-    environment:
-      - POSTGRES_DB=sms_campaigns
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    networks:
-      - sms-campaign-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # db:
+  #   image: postgres:15-alpine
+  #   container_name: sms-campaign-db
+  #   environment:
+  #     - POSTGRES_DB=sms_campaigns
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=password
+  #   ports:
+  #     - "5433:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+  #   networks:
+  #     - sms-campaign-network
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   # Redis cache
   # redis:
@@ -72,7 +63,7 @@ services:
   #     timeout: 5s
   #     retries: 5
 
-  # Production app service
+  # Production app service (standalone - uses external database/redis)
   app-prod:
     build:
       context: .
@@ -80,22 +71,27 @@ services:
       target: production
     container_name: sms-campaign-app-prod
     ports:
-      - "8001:8000"
+      - "8008:8008"
+
+    # Load configuration from .env file
+    env_file:
+      - .env
+
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/sms_campaigns
-      - REDIS_URL=redis://redis:6379/0
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - SECRET_KEY=${SECRET_KEY}
       - DEBUG=false
       - ENVIRONMENT=production
-    depends_on:
-      - db
-      - redis
+
     networks:
       - sms-campaign-network
     profiles:
       - production
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   postgres_data:

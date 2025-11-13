@@ -45,19 +45,19 @@ class CampaignLogResponse(BaseModel):
         return cls.model_validate({
             'id': str(obj.id),
             'campaign_id': obj.campaign_id,
-            'request_id': obj.request_id,
-            'user_id': obj.user_id,
-            'campaign_description': obj.campaign_description,
-            'generated_flow': obj.generated_flow,
-            'generation_time_ms': obj.generation_time_ms,
-            'tokens_used': obj.tokens_used,
-            'model_used': obj.model_used,
+            'request_id': '',  # Not stored in database model
+            'user_id': None,  # Not stored in database model
+            'campaign_description': obj.campaignDescription,
+            'generated_flow': obj.generatedFlow,
+            'generation_time_ms': obj.generationTimeMs,
+            'tokens_used': obj.tokensUsed,
+            'model_used': obj.modelUsed,
             'status': obj.status,
-            'error_message': obj.error_message,
-            'node_count': obj.node_count,
-            'validation_issues': obj.validation_issues,
-            'corrections_applied': obj.corrections_applied,
-            'quality_score': obj.quality_score,
+            'error_message': obj.errorMessage,
+            'node_count': None,  # Not stored in database model
+            'validation_issues': 0,  # Not stored in database model
+            'corrections_applied': 0,  # Not stored in database model
+            'quality_score': None,  # Not stored in database model
             'created_at': obj.created_at,
             'updated_at': obj.updated_at,
         })

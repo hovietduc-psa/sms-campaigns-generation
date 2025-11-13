@@ -22,6 +22,7 @@ from src.services.llm_engine.llm_client import get_llm_client
 from src.services.llm_engine.prompt_builder import get_prompt_builder
 from src.services.llm_engine.response_parser import get_response_parser
 from src.services.validation.validator import get_validator, ValidationConfig
+from src.services.validation.flowbuilder_schema import normalize_campaign_flow
 from src.services.database.campaign_logger import get_database_logger
 
 logger = get_logger(__name__)
@@ -156,7 +157,7 @@ class CampaignOrchestrator:
             complexity = self._analyze_complexity(request.campaignDescription)
 
             # Step 2: Generate prompt
-            system_prompt, user_prompt = self.prompt_builder.build_prompt(
+            system_prompt, user_prompt = await self.prompt_builder.build_prompt(
                 campaign_description=request.campaignDescription,
                 complexity_level=complexity,
                 include_examples=True,
@@ -195,12 +196,29 @@ class CampaignOrchestrator:
             # Step 4: Parse response
             # Handle both dict (from OpenRouter) and string (from OpenAI) responses
             if isinstance(raw_response, dict):
+                # Apply FlowBuilder schema normalization first
+                try:
+                    flowbuilder_result = normalize_campaign_flow(raw_response)
+                    normalized_response = flowbuilder_result["flow"]
+
+                    logger.info(
+                        "FlowBuilder schema normalization applied in orchestrator",
+                        extra={
+                            "fb_errors": flowbuilder_result["validation"]["error_count"],
+                            "fb_warnings": flowbuilder_result["validation"]["warning_count"],
+                            "fb_is_valid": flowbuilder_result["validation"]["is_valid"]
+                        }
+                    )
+                except Exception as fb_error:
+                    logger.warning(f"FlowBuilder schema normalization failed: {fb_error}")
+                    normalized_response = raw_response
+
                 # Try direct parsing first
                 try:
-                    campaign_flow = CampaignFlow(**raw_response)
+                    campaign_flow = CampaignFlow(**normalized_response)
                     parse_metadata = {
                         "original_length": len(str(raw_response)),
-                        "cleaning_steps": [],
+                        "cleaning_steps": ["flowbuilder_normalization"],
                         "repair_attempts": 0,
                         "validation_errors": [],
                         "response_type": "parsed_json"
@@ -254,7 +272,11 @@ class CampaignOrchestrator:
                     apply_corrections=self.settings.ENABLE_AUTO_CORRECTION,
                 )
             else:
-                flow_data = campaign_flow.dict() if hasattr(campaign_flow, 'dict') else campaign_flow.model_dump()
+                # campaign_flow is now a dict from optimized ResponseParser
+                if isinstance(campaign_flow, dict):
+                    flow_data = campaign_flow
+                else:
+                    flow_data = campaign_flow.dict() if hasattr(campaign_flow, 'dict') else campaign_flow.model_dump()
                 validation_summary = self.validator.validate_flow(
                     flow_data=flow_data,
                     apply_corrections=self.settings.ENABLE_AUTO_CORRECTION,
@@ -320,13 +342,13 @@ class CampaignOrchestrator:
                     request_id=request_id,
                     user_id=user_id,
                     campaign_description=request.campaignDescription,
-                    generated_flow=result.flow_data,
+                    generated_flow=result.flow_data if result.flow_data else {},
                     generation_time_ms=int(total_time),
-                    tokens_used=result.metadata.get("parse_metadata", {}).get("parsing_metadata", {}).get("tokens_used", 0),
-                    model_used=result.metadata.get("model_used", self.llm_client.model),
+                    tokens_used=result.metadata.get("parse_metadata", {}).get("parsing_metadata", {}).get("tokens_used", 0) if result.metadata else 0,
+                    model_used=result.metadata.get("model_used", self.llm_client.model) if result.metadata else self.llm_client.model,
                     status="success" if validation_summary.is_valid else "partial",
                     error_message=None if validation_summary.is_valid else f"Validation issues: {validation_summary.error_count} errors, {validation_summary.warning_count} warnings",
-                    node_count=len(result.flow_data.get("steps", [])),
+                    node_count=len(result.flow_data.get("steps", [])) if result.flow_data else 0,
                     validation_issues=validation_summary.total_issues,
                     corrections_applied=validation_summary.corrections_applied,
                     quality_score=validation_summary.quality_score if hasattr(validation_summary, 'quality_score') else None,

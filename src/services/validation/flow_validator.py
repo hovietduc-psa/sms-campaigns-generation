@@ -406,7 +406,7 @@ class FlowValidator:
                 severity="warning",
                 node_id=step.id,
                 field_path=f"steps.{step.id}.events",
-                suggested_fit=f"Reduce branches to {self.max_branches_per_segment} or fewer"
+                suggested_fix=f"Reduce branches to {self.max_branches_per_segment} or fewer"
             ))
 
         # Check branch labels
@@ -635,7 +635,7 @@ class FlowValidator:
                     node_id=step.id,
                     event_id=event.id,
                     field_path=f"steps.{step.id}.events.{event.id}.after",
-                    suggested_fit="Consider increasing NoReply time to at least 15 minutes"
+                    suggested_fix="Consider increasing NoReply time to at least 15 minutes"
                 ))
 
             # Check for very long noreply times
@@ -647,7 +647,7 @@ class FlowValidator:
                     node_id=step.id,
                     event_id=event.id,
                     field_path=f"steps.{step.id}.events.{event.id}.after",
-                    suggested_fit="Consider reducing NoReply time to 7 days or less"
+                    suggested_fix="Consider reducing NoReply time to 7 days or less"
                 ))
 
         except (ValueError, TypeError, AttributeError):
@@ -832,7 +832,7 @@ class FlowValidator:
                 message=f"Flow has {len(discount_nodes)} discount messages, consider consolidating",
                 severity="warning",
                 field_path="steps",
-                suggested_fit="Reduce the number of discount offers to avoid devaluation"
+                suggested_fix="Reduce the number of discount offers to avoid devaluation"
             ))
 
         # Check discount expiry
@@ -919,6 +919,70 @@ class FlowValidator:
                 return True
 
         return False
+
+    def _detect_duplicate_nextstepid(self, flow: CampaignFlow, corrected_data: Dict[str, Any]) -> List[ValidationIssue]:
+        """
+        Detect duplicate nextStepID values across all events in the flow.
+
+        This is a critical validation because multiple events pointing to the same
+        nextStepID creates ambiguous flow logic and violates FlowBuilder rules.
+        """
+        issues = []
+        nextstepid_counts = defaultdict(list)
+
+        # Collect all nextStepID references from all events
+        for step in flow.steps:
+            for event in step.events:
+                if hasattr(event, 'nextStepID') and event.nextStepID:
+                    nextstepid = event.nextStepID
+                    if nextstepid:  # Only count non-null nextStepID values
+                        nextstepid_counts[nextstepid].append({
+                            "step_id": step.id,
+                            "event_id": event.id,
+                            "step_type": step.type,
+                            "event_type": event.type,
+                            "event_label": getattr(event, 'label', None)
+                        })
+
+        # Identify duplicates (nextStepID values referenced by more than one event)
+        for nextstepid, references in nextstepid_counts.items():
+            if len(references) > 1:
+                # Create a detailed error message
+                ref_details = []
+                for ref in references:
+                    detail = f"Step '{ref['step_id']}' Event '{ref['event_id']}'"
+                    if ref.get('event_label'):
+                        detail += f" ({ref['event_label']})"
+                    ref_details.append(detail)
+
+                issues.append(ValidationIssue(
+                    code="DUPLICATE_NEXT_STEP_ID",
+                    message=f"Duplicate nextStepID '{nextstepid}' found in {len(references)} events: {'; '.join(ref_details)}",
+                    severity="error",
+                    node_id=references[0]["step_id"],
+                    field_path="events.nextStepID",
+                    value=nextstepid,
+                    suggested_fix="Create unique end nodes for each event or modify flow logic"
+                ))
+
+        if issues:
+            logger.warning(
+                f"Found {len(issues)} duplicate nextStepID violations",
+                extra={
+                    "duplicate_count": len(issues),
+                    "total_nextstepid_references": sum(len(refs) for refs in nextstepid_counts.values()),
+                    "unique_nextstepid_values": len(nextstepid_counts),
+                    "violations": [
+                        {
+                            "nextstepid": issue.value,
+                            "reference_count": len([r for r in nextstepid_counts[issue.value] if r])
+                        }
+                        for issue in issues
+                    ]
+                }
+            )
+
+        return issues
 
     def _validate_flow_optimization(self, flow: CampaignFlow, corrected_data: Dict[str, Any]) -> List[ValidationIssue]:
         """Validate flow optimization and suggest improvements."""

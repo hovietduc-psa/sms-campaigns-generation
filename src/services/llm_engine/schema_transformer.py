@@ -59,8 +59,6 @@ class SchemaTransformer:
         """
         try:
             logger.info("Starting schema transformation from LLM output to CampaignFlow")
-            logger.debug(f"LLM output structure: {list(llm_output.keys())}")
-            logger.debug(f"Steps count: {len(llm_output.get('steps', []))}")
 
             # Extract basic structure
             initial_step_id = llm_output.get("initialStepID", "welcome-step")
@@ -80,7 +78,7 @@ class SchemaTransformer:
                         new_id = transformed_step.get("id") if isinstance(transformed_step, dict) else transformed_step.id
                         old_id = step_data.get("id", f"step_{i}")
                         step_mapping[old_id] = new_id
-                        logger.debug(f"Successfully transformed step {i}: {old_id} -> {new_id}")
+                        # Step transformation successful
                     else:
                         failed_steps.append(i)
                         logger.warning(f"Failed to transform step {i}")

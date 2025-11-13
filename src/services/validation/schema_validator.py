@@ -681,7 +681,7 @@ class SchemaValidator:
                         severity="warning",
                         node_id=node_id,
                         field_path=f"steps[{index}].time",
-                        suggested_fit=f"Reduce delay to {self.max_delay_days} days or less"
+                        suggested_fix=f"Reduce delay to {self.max_delay_days} days or less"
                     ))
 
             except ValueError:

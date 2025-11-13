@@ -76,22 +76,18 @@ class DatabaseLogger:
             return False
 
         try:
-            # Create the log entry
+            # Create the log entry - using only fields that exist in database schema
             campaign_log = CampaignLog(
                 campaign_id=campaign_id,
-                request_id=request_id,
-                user_id=user_id,
-                campaign_description=campaign_description,
-                generated_flow=generated_flow,
-                generation_time_ms=generation_time_ms,
-                tokens_used=tokens_used,
-                model_used=model_used,
                 status=status,
-                error_message=error_message,
-                node_count=node_count,
-                validation_issues=validation_issues,
-                corrections_applied=corrections_applied,
-                quality_score=quality_score,
+                campaignDescription=campaign_description,
+                generatedFlow=generated_flow,
+                generationTimeMs=generation_time_ms,
+                tokensUsed=tokens_used,
+                modelUsed=model_used,
+                errorMessage=error_message,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
             )
 
             # Try to save to database
@@ -127,14 +123,14 @@ class DatabaseLogger:
                 async for session in get_db_session():
                     session.add(campaign_log)
                     await session.commit()
-                    logger.info(f"Campaign log saved successfully: {campaign_log.request_id}")
+                    logger.info(f"Campaign log saved successfully: {campaign_log.campaign_id}")
                     return True
             except Exception as e:
                 if attempt < self._retry_attempts - 1:
                     logger.warning(f"Database save attempt {attempt + 1} failed: {e}, retrying...")
                     await asyncio.sleep(self._retry_delay * (2 ** attempt))  # Exponential backoff
                 else:
-                    logger.error(f"All database save attempts failed for {campaign_log.request_id}: {e}")
+                    logger.error(f"All database save attempts failed for {campaign_log.campaign_id}: {e}")
                     return False
         return False
 
@@ -152,7 +148,7 @@ class DatabaseLogger:
             if len(self._memory_fallback) > self._max_memory_fallback:
                 self._memory_fallback.pop(0)  # Remove oldest
 
-            logger.info(f"Campaign log stored in memory fallback: {campaign_log.request_id}")
+            logger.info(f"Campaign log stored in memory fallback: {campaign_log.campaign_id}")
 
             # Try to flush memory fallback periodically
             if len(self._memory_fallback) >= 10:  # Flush when we have 10+ items
@@ -184,63 +180,73 @@ class DatabaseLogger:
                         metrics = result.scalar_one_or_none()
 
                         if not metrics:
-                            metrics = CampaignMetrics(date=today)
+                            metrics = CampaignMetrics(
+                                date=today,
+                                created_at=datetime.utcnow(),
+                                updated_at=datetime.utcnow()
+                            )
                             session.add(metrics)
 
-                        # Update metrics
-                        metrics.total_requests += 1
+                        # Initialize optional fields if they are None
+                        if metrics.totalNodesGenerated is None:
+                            metrics.totalNodesGenerated = 0
+                        if metrics.totalValidationIssues is None:
+                            metrics.totalValidationIssues = 0
+                        if metrics.averageQualityScore is None:
+                            metrics.averageQualityScore = 0.0
+
+                        # Update metrics with defensive checks
+                        metrics.totalRequests = (metrics.totalRequests or 0) + 1
 
                         if status == "success":
-                            metrics.successful_generations += 1
+                            metrics.successfulGenerations = (metrics.successfulGenerations or 0) + 1
                         elif status == "error":
-                            metrics.failed_generations += 1
+                            metrics.failedGenerations = (metrics.failedGenerations or 0) + 1
                         else:
-                            metrics.partial_generations += 1
+                            metrics.partial_generations = (metrics.partial_generations or 0) + 1
 
                         # Update averages
                         if generation_time_ms:
-                            if metrics.average_generation_time_ms:
-                                metrics.average_generation_time_ms = (
-                                    metrics.average_generation_time_ms + generation_time_ms
+                            if metrics.averageGenerationTimeMs:
+                                metrics.averageGenerationTimeMs = (
+                                    metrics.averageGenerationTimeMs + generation_time_ms
                                 ) / 2
                             else:
-                                metrics.average_generation_time_ms = generation_time_ms
+                                metrics.averageGenerationTimeMs = generation_time_ms
 
                         if tokens_used:
-                            if metrics.average_tokens_used:
-                                metrics.average_tokens_used = (
-                                    metrics.average_tokens_used + tokens_used
+                            if metrics.averageTokensUsed:
+                                metrics.averageTokensUsed = (
+                                    metrics.averageTokensUsed + tokens_used
                                 ) / 2
                             else:
-                                metrics.average_tokens_used = tokens_used
+                                metrics.averageTokensUsed = tokens_used
 
                         if quality_score:
-                            if metrics.average_quality_score:
-                                metrics.average_quality_score = (
-                                    metrics.average_quality_score + quality_score
+                            if metrics.averageQualityScore:
+                                metrics.averageQualityScore = (
+                                    metrics.averageQualityScore + quality_score
                                 ) / 2
                             else:
-                                metrics.average_quality_score = quality_score
+                                metrics.averageQualityScore = quality_score
 
                         # Update model usage
                         if model_used:
-                            if not metrics.model_usage:
-                                metrics.model_usage = {}
-                            model_usage = dict(metrics.model_usage)
+                            if not metrics.modelUsage:
+                                metrics.modelUsage = {}
+                            model_usage = dict(metrics.modelUsage)
                             model_usage[model_used] = model_usage.get(model_used, 0) + 1
-                            metrics.model_usage = model_usage
+                            metrics.modelUsage = model_usage
 
-                        # Update counts
-                        if metrics.total_nodes_generated is None:
-                            metrics.total_nodes_generated = 0
-                        if metrics.total_validation_issues is None:
-                            metrics.total_validation_issues = 0
+                        # Update counts with defensive checks
+                        metrics.totalNodesGenerated = (metrics.totalNodesGenerated or 0) + node_count
+                        metrics.totalValidationIssues = (metrics.totalValidationIssues or 0) + validation_issues
 
-                        metrics.total_nodes_generated += node_count
-                        metrics.total_validation_issues += validation_issues
+                        # Explicitly update the updated_at timestamp
+                        metrics.updated_at = datetime.utcnow()
 
                         await session.commit()
-                        logger.debug(f"Daily metrics updated for {today}")
+                        logger.info(f"Daily metrics updated for {today}")
                         return
 
                 except Exception as e:
@@ -269,7 +275,7 @@ class DatabaseLogger:
             retry_count = item['retry_count']
 
             if retry_count >= 3:  # Max retries
-                logger.warning(f"Max retries exceeded for {campaign_log.request_id}, discarding")
+                logger.warning(f"Max retries exceeded for {campaign_log.campaign_id}, discarding")
                 continue
 
             # Increment retry count

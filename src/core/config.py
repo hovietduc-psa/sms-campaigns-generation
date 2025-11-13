@@ -49,7 +49,7 @@ class Settings(BaseSettings):
         description="OpenAI API key"
     )
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
-    OPENAI_MAX_TOKENS: int = 4000
+    OPENAI_MAX_TOKENS: int = 12000
     OPENAI_TEMPERATURE: float = 0.7
     OPENAI_TIMEOUT: int = 60
 
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
         description="OpenRouter API key"
     )
     OPENROUTER_MODEL: str = "anthropic/claude-3.5-sonnet"
-    OPENROUTER_MAX_TOKENS: int = 4000
+    OPENROUTER_MAX_TOKENS: int = 12000
     OPENROUTER_TEMPERATURE: float = 0.7
     OPENROUTER_TIMEOUT: int = 60
 
@@ -101,6 +101,20 @@ class Settings(BaseSettings):
     ENABLE_METRICS: bool = True
     METRICS_PORT: int = 9090
     HEALTH_CHECK_INTERVAL: int = 30
+
+    # Environment-based API Authentication
+    ENV_API_KEY: str = Field(
+        default="",
+        description="Environment API key for service-to-service communication"
+    )
+    ENV_API_KEY_HEADER: str = Field(
+        default="X-API-Key",
+        description="Header name for environment API key"
+    )
+    ENV_API_KEY_ENABLED: bool = Field(
+        default=True,
+        description="Enable environment API key authentication"
+    )
 
     # Feature Flags
     ENABLE_CACHING: bool = True

@@ -18,6 +18,7 @@ from src.models.requests import CampaignGenerationRequest, CampaignGenerationRes
 from src.services.campaign_generation.orchestrator import get_campaign_orchestrator, CampaignOrchestrator
 from src.services.validation.reporting import get_validation_reporter
 from src.services.database.campaign_logger import get_database_logger
+from src.api.middleware.auth import verify_env_api_key_or_user
 
 logger = get_logger(__name__)
 campaign_logger = CampaignLogger()
@@ -32,15 +33,6 @@ async def get_orchestrator() -> CampaignOrchestrator:
     return get_campaign_orchestrator()
 
 
-async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-) -> Optional[str]:
-    """Extract current user from credentials."""
-    if credentials and credentials.credentials:
-        # In a real implementation, you would validate the token here
-        # For now, we'll use the token as a simple user identifier
-        return credentials.credentials
-    return None
 
 
 @router.post(
@@ -61,7 +53,7 @@ async def generate_campaign_flow(
     request: CampaignGenerationRequest,
     http_request: Request,
     orchestrator: CampaignOrchestrator = Depends(get_orchestrator),
-    current_user: Optional[str] = Depends(get_current_user),
+    current_user: Optional[Any] = Depends(verify_env_api_key_or_user),
     settings: Any = Depends(get_settings),
 ) -> CampaignGenerationResponse:
     """
@@ -91,19 +83,22 @@ async def generate_campaign_flow(
     start_time = time.time()
     request_id = str(int(start_time * 1000))  # Simple request ID
 
+    # Extract user_id for logging
+    user_id = current_user.id if current_user else None
+
     try:
         # Log generation start
         campaign_logger.log_generation_start(
             campaign_description=request.campaignDescription,
             request_id=request_id,
-            user_id=current_user,
+            user_id=user_id,
         )
 
         # Generate campaign
         result = await orchestrator.generate_campaign(
             request=request,
             request_id=request_id,
-            user_id=current_user,
+            user_id=user_id,
         )
 
         # Build response
@@ -127,7 +122,7 @@ async def generate_campaign_flow(
                 model_used=model_used,
                 node_count=node_count,
                 request_id=request_id,
-                user_id=current_user,
+                user_id=user_id,
             )
 
             # Log successful generation to database
@@ -135,7 +130,7 @@ async def generate_campaign_flow(
                 await database_logger.log_campaign_generation(
                     campaign_id=result.campaign_id,
                     request_id=request_id,
-                    user_id=current_user,
+                    user_id=user_id,
                     campaign_description=request.campaignDescription,
                     generated_flow=response_data,
                     generation_time_ms=int(generation_time_ms) if generation_time_ms else None,
@@ -166,7 +161,7 @@ async def generate_campaign_flow(
                     "status_code": 200,
                     "duration_ms": (time.time() - start_time) * 1000,
                     "request_id": request_id,
-                    "user_id": current_user,
+                    "user_id": user_id,
                 }
             )
 
@@ -184,7 +179,7 @@ async def generate_campaign_flow(
                 error=error_message,
                 generation_time_ms=result.metadata.get("total_time_ms", 0),
                 request_id=request_id,
-                user_id=current_user,
+                user_id=user_id,
             )
 
             # Log failed generation to database
@@ -192,7 +187,7 @@ async def generate_campaign_flow(
                 await database_logger.log_campaign_generation(
                     campaign_id=result.campaign_id,
                     request_id=request_id,
-                    user_id=current_user,
+                    user_id=user_id,
                     campaign_description=request.campaignDescription,
                     generated_flow={},  # Empty flow for failed generation
                     generation_time_ms=int(result.metadata.get("total_time_ms", 0)) if result.metadata.get("total_time_ms") else None,
@@ -239,7 +234,7 @@ async def generate_campaign_flow(
             error=str(e),
             generation_time_ms=generation_time,
             request_id=request_id,
-            user_id=current_user,
+            user_id=user_id,
         )
 
         # Log unexpected error to database
@@ -247,7 +242,7 @@ async def generate_campaign_flow(
             await database_logger.log_campaign_generation(
                 campaign_id="unknown",
                 request_id=request_id,
-                user_id=current_user,
+                user_id=user_id,
                 campaign_description=request.campaignDescription,
                 generated_flow={},  # Empty flow for failed generation
                 generation_time_ms=int(generation_time),
@@ -268,7 +263,7 @@ async def generate_campaign_flow(
             f"Unexpected error in generate_campaign_flow: {e}",
             extra={
                 "request_id": request_id,
-                "user_id": current_user,
+                "user_id": user_id,
                 "campaign_description": request.campaignDescription,
             },
             exc_info=True
@@ -295,7 +290,7 @@ async def generate_campaign_flows_batch(
     requests: list[CampaignGenerationRequest],
     http_request: Request,
     orchestrator: CampaignOrchestrator = Depends(get_orchestrator),
-    current_user: Optional[str] = Depends(get_current_user),
+    current_user: Optional[Any] = Depends(verify_env_api_key_or_user),
     settings: Any = Depends(get_settings),
 ) -> Dict[str, Any]:
     """
@@ -314,6 +309,9 @@ async def generate_campaign_flows_batch(
     start_time = time.time()
     batch_id = str(int(start_time * 1000))
 
+    # Extract user_id for logging - fixed version
+    user_id = current_user.id if current_user else None
+
     try:
         # Validate batch size
         if len(requests) > 10:  # Reasonable batch limit
@@ -327,14 +325,14 @@ async def generate_campaign_flows_batch(
             extra={
                 "batch_id": batch_id,
                 "batch_size": len(requests),
-                "user_id": current_user,
+                "user_id": user_id,
             }
         )
 
         # Generate campaigns
         results = await orchestrator.generate_campaign_batch(
             requests=requests,
-            user_id=current_user,
+            user_id=user_id,
         )
 
         # Build response
@@ -361,7 +359,7 @@ async def generate_campaign_flows_batch(
             "errors": failed_results,
             "metadata": {
                 "generation_time_ms": round((time.time() - start_time) * 1000, 2),
-                "user_id": current_user,
+                "user_id": user_id,
             }
         }
 
@@ -375,7 +373,7 @@ async def generate_campaign_flows_batch(
                 "failed_generations": len(failed_results),
                 "success_rate": response_data["success_rate"],
                 "generation_time_ms": response_data["metadata"]["generation_time_ms"],
-                "user_id": current_user,
+                "user_id": user_id,
             }
         )
 
@@ -390,7 +388,7 @@ async def generate_campaign_flows_batch(
             extra={
                 "batch_id": batch_id,
                 "batch_size": len(requests),
-                "user_id": current_user,
+                "user_id": user_id,
             },
             exc_info=True
         )
@@ -448,7 +446,7 @@ async def campaign_health_check(
 )
 async def get_generation_statistics(
     orchestrator: CampaignOrchestrator = Depends(get_orchestrator),
-    current_user: Optional[str] = Depends(get_current_user),
+    current_user: Optional[Any] = Depends(verify_env_api_key_or_user),
 ) -> Dict[str, Any]:
     """Get campaign generation statistics."""
     try:
@@ -487,7 +485,7 @@ async def get_generation_statistics(
 )
 async def get_campaign_report(
     campaign_id: str,
-    current_user: Optional[str] = Depends(get_current_user),
+    current_user: Optional[Any] = Depends(verify_env_api_key_or_user),
 ) -> Dict[str, Any]:
     """Get validation report for a specific campaign."""
     try:

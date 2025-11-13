@@ -2,6 +2,7 @@
 Response parser for LLM campaign generation.
 
 This module provides intelligent parsing and cleaning of LLM responses to extract valid JSON.
+Note: Validation is handled by the validator service in the orchestrator to avoid duplication.
 """
 
 import json
@@ -9,7 +10,6 @@ import re
 from typing import Any, Dict, Optional, Tuple
 
 from src.core.logging import get_logger
-from src.models.flow_schema import CampaignFlow
 from src.utils.constants import LOG_CONTEXT_MODEL_USED, LOG_CONTEXT_TOKENS_USED
 
 logger = get_logger(__name__)
@@ -38,15 +38,13 @@ class ResponseParser:
             r'[\}\]]\s*```',  # End of code block
         ]
 
-        # Common LLM output artifacts to clean
+        # Common LLM output artifacts to clean (less aggressive patterns)
         self.cleanup_patterns = [
             (r'^```json\s*', ''),  # Remove JSON code block start
             (r'^```\s*', ''),  # Remove generic code block start
             (r'\s*```$', ''),  # Remove code block end
             (r'^\s*//.*$', ''),  # Remove single-line comments
             (r'/\*.*?\*/', ''),  # Remove multi-line comments
-            (r'^[^{]*\{', '{'),  # Remove text before first {
-            (r'\}[^}]*$', '}'),  # Remove text after last }
         ]
 
     def parse_response(
@@ -54,9 +52,10 @@ class ResponseParser:
         response_text: str,
         strict_mode: bool = False,
         attempt_repair: bool = True,
-    ) -> Tuple[CampaignFlow, Dict[str, Any]]:
+    ) -> Tuple[Any, Dict[str, Any]]:
         """
-        Parse LLM response and extract valid campaign flow.
+        Parse LLM response and extract campaign flow JSON.
+        Note: Validation is handled by the validator service in the orchestrator to avoid duplication.
 
         Args:
             response_text: Raw LLM response text
@@ -64,7 +63,7 @@ class ResponseParser:
             attempt_repair: If True, attempt to repair common JSON issues
 
         Returns:
-            Tuple of (CampaignFlow object, metadata)
+            Tuple of (campaign_flow_dict, metadata)
 
         Raises:
             ResponseParseError: If parsing fails
@@ -73,48 +72,39 @@ class ResponseParser:
             "original_length": len(response_text),
             "cleaning_steps": [],
             "repair_attempts": 0,
-            "validation_errors": [],
+            "response_type": "unknown"
         }
 
         try:
-            # Step 1: Extract JSON from response
+            # Step 1: Extract JSON from response using enhanced patterns
             json_text = self._extract_json(response_text, metadata)
             metadata["json_length"] = len(json_text)
 
-            # Step 2: Clean JSON text
+            # Step 2: Clean JSON text with enhanced patterns
             if attempt_repair:
                 json_text = self._clean_json(json_text, metadata)
 
-            # Step 3: Parse JSON
+            # Step 3: Parse JSON with enhanced error handling
             try:
                 json_data = json.loads(json_text)
+                metadata["response_type"] = "parsed_json"
             except json.JSONDecodeError as e:
                 if attempt_repair:
                     json_text = self._repair_json(json_text, e, metadata)
                     json_data = json.loads(json_text)
+                    metadata["response_type"] = "repaired_json"
                 else:
                     raise ResponseParseError(f"Invalid JSON: {e}") from e
 
-            # Step 4: Validate and create CampaignFlow
-            try:
-                campaign_flow = CampaignFlow(**json_data)
-            except Exception as e:
-                if strict_mode:
-                    raise ResponseParseError(f"Invalid campaign flow structure: {e}") from e
-
-                # Attempt to repair campaign flow structure
-                if attempt_repair:
-                    json_data = self._repair_campaign_flow(json_data, e, metadata)
-                    campaign_flow = CampaignFlow(**json_data)
-                else:
-                    raise ResponseParseError(f"Invalid campaign flow structure: {e}") from e
+            # Step 4: Create campaign flow object (raw data - validation will be done by orchestrator)
+            campaign_flow = self._create_campaign_flow_object(json_data, metadata)
 
             metadata["parsing_status"] = "success"
-            metadata["node_count"] = len(campaign_flow.steps)
-            metadata["flow_complexity"] = self._assess_complexity(campaign_flow)
+            metadata["node_count"] = len(json_data.get("steps", []))
+            metadata["flow_complexity"] = self._assess_complexity(json_data)
 
             logger.info(
-                "LLM response parsed successfully",
+                "LLM response parsed successfully - validation delegated to orchestrator",
                 extra={
                     "original_length": metadata["original_length"],
                     "final_length": len(json_text),
@@ -144,52 +134,82 @@ class ResponseParser:
             raise ResponseParseError(f"Failed to parse response: {e}") from e
 
     def _extract_json(self, text: str, metadata: Dict[str, Any]) -> str:
-        """Extract JSON portion from response text."""
+        """Extract JSON portion from response text using enhanced patterns."""
         original_text = text
 
-        # Try to find JSON boundaries
+        # Enhanced pattern to handle responses that start with text
+        # Look for the first { that starts a JSON object
         json_start = None
-        json_end = None
 
-        # Look for JSON start
-        for pattern in self.json_start_patterns:
-            match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
-            if match:
-                json_start = match.start()
+        # Try direct brace/bracket search first (most reliable for LLM responses)
+        brace_positions = []
+        pos = 0
+        while True:
+            brace_pos = text.find('{', pos)
+            if brace_pos == -1:
                 break
+            brace_positions.append(brace_pos)
+            pos = brace_pos + 1
+
+        if brace_positions:
+            # Try each position to find valid JSON start
+            for brace_pos in brace_positions:
+                # Check if this brace looks like start of a JSON object
+                # by looking backward for non-JSON characters
+                text_before = text[:brace_pos].strip()
+                if not text_before or text_before.endswith((':', '\n', '\n\n')):
+                    json_start = brace_pos
+                    break
+
+            # If no good match, use first brace
+            if json_start is None:
+                json_start = brace_positions[0]
 
         if json_start is None:
-            # Fallback: find first { or [
-            brace_pos = text.find('{')
+            # Try brackets as fallback
             bracket_pos = text.find('[')
-            if brace_pos != -1 and (bracket_pos == -1 or brace_pos < bracket_pos):
-                json_start = brace_pos
-            elif bracket_pos != -1:
+            if bracket_pos != -1:
                 json_start = bracket_pos
 
         if json_start is None:
             raise ResponseParseError("Could not find JSON start in response")
 
-        # Look for JSON end
-        text_from_start = text[json_start:]
+        # Find the matching end brace using a stack approach
+        brace_count = 0
+        in_string = False
+        escape_next = False
+        json_end = None  # Initialize json_end to prevent variable access errors
 
-        for pattern in self.json_end_patterns:
-            match = re.search(pattern, text_from_start, re.IGNORECASE | re.MULTILINE)
-            if match:
-                json_end = json_start + match.end()
-                break
+        for i in range(json_start, len(text)):
+            char = text[i]
+
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        # Found matching end brace
+                        json_end = i + 1
+                        break
 
         if json_end is None:
-            # Fallback: find last } or ]
-            brace_pos = text_from_start.rfind('}')
-            bracket_pos = text_from_start.rfind(']')
-            if brace_pos != -1 and (bracket_pos == -1 or brace_pos > bracket_pos):
-                json_end = json_start + brace_pos + 1
-            elif bracket_pos != -1:
-                json_end = json_start + bracket_pos + 1
-
-        if json_end is None:
-            raise ResponseParseError("Could not find JSON end in response")
+            # Fallback to simple search for last brace
+            json_end = text.rfind('}') + 1
+            if json_end == 0:
+                raise ResponseParseError("Could not find JSON end in response")
 
         json_text = text[json_start:json_end]
         metadata["cleaning_steps"].append("extracted_json_from_response")
@@ -271,17 +291,17 @@ class ResponseParser:
 
     def _fix_escaped_characters(self, text: str, metadata: Dict[str, Any]) -> str:
         """Fix escaped characters in JSON strings."""
-        # Fix common escape sequence issues
+        # Fix common escape sequence issues - be conservative to avoid breaking valid JSON
         fixed_text = text
 
-        # Fix double escapes
+        # Only fix double backslashes (shouldn't have single backslashes in valid JSON)
         fixed_text = fixed_text.replace('\\\\', '\\')
 
-        # Fix newlines in strings
-        fixed_text = re.sub(r'(?<!\\)\\n', '\\n', fixed_text)
+        # Note: Don't "fix" newlines or tabs - they should already be properly escaped in valid JSON
+        # The LLM typically generates valid JSON with proper \n and \t escapes
 
-        # Fix tabs in strings
-        fixed_text = re.sub(r'(?<!\\)\\t', '\\t', fixed_text)
+        # Only fix obvious issues like unescaped quotes inside strings
+        # This is a conservative approach to avoid breaking valid JSON
 
         if fixed_text != text:
             metadata["cleaning_steps"].append("fixed_escaped_characters")
@@ -499,19 +519,42 @@ class ResponseParser:
 
         return repaired_data
 
-    def _assess_complexity(self, campaign_flow: CampaignFlow) -> str:
-        """Assess the complexity of a campaign flow."""
-        node_count = len(campaign_flow.steps)
-        event_count = sum(len(step.events) for step in campaign_flow.steps)
-        branch_count = sum(1 for step in campaign_flow.steps if step.type == "segment")
-        message_count = sum(1 for step in campaign_flow.steps if step.type == "message")
+    def _create_campaign_flow_object(self, flow_data: Dict[str, Any], metadata: Dict[str, Any]) -> Any:
+        """
+        Create a campaign flow object for backward compatibility.
+        Returns the flow_data dict as-is for now to maintain compatibility.
+        """
+        # For now, return the validated flow data directly
+        # This maintains compatibility with existing code expecting dict-like access
+        return flow_data
 
-        # Simple scoring system
-        complexity_score = node_count + (event_count * 0.5) + (branch_count * 2) + (message_count * 0.3)
+    def _assess_complexity(self, campaign_flow: Dict[str, Any]) -> str:
+        """Assess the complexity of a campaign flow using format_json_flowbuilder.md structure."""
+        steps = campaign_flow.get("steps", [])
+        node_count = len(steps)
 
-        if complexity_score < 5:
+        # Count events, branches, and different node types
+        event_count = sum(len(step.get("events", [])) for step in steps)
+        branch_count = sum(1 for step in steps if step.get("type") in ["segment", "split", "experiment"])
+        message_count = sum(1 for step in steps if step.get("type") == "message")
+
+        # Count complex node types
+        complex_nodes = sum(1 for step in steps if step.get("type") in [
+            "product_choice", "purchase", "quiz", "segment", "experiment"
+        ])
+
+        # Enhanced scoring system for format_json_flowbuilder.md
+        complexity_score = (
+            node_count * 1.0 +
+            event_count * 0.3 +
+            branch_count * 1.5 +
+            message_count * 0.2 +
+            complex_nodes * 1.2
+        )
+
+        if complexity_score < 8:
             return "simple"
-        elif complexity_score < 15:
+        elif complexity_score < 20:
             return "medium"
         else:
             return "complex"

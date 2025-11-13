@@ -538,6 +538,8 @@ class GenericNode(BaseNode):
 # Main Campaign Flow Model
 class CampaignFlow(BaseModel):
     """Main campaign flow model matching FlowBuilder format."""
+    name: str = Field(description="Campaign name")
+    description: str = Field(description="Campaign description")
     initialStepID: str
     steps: List[Union[
         MessageNode,
@@ -565,9 +567,18 @@ class CampaignFlow(BaseModel):
 
     @model_validator(mode='before')
     @classmethod
-    def validate_initial_step_exists(cls, data):
-        """Validate that the initial step exists in the steps list."""
+    def validate_root_fields(cls, data):
+        """Validate and add missing root fields."""
         if isinstance(data, dict):
+            # Add default name if missing
+            if 'name' not in data or not data['name']:
+                data['name'] = "Generated Campaign"
+
+            # Add default description if missing
+            if 'description' not in data or not data['description']:
+                data['description'] = data.get('metadata', {}).get('campaign_description', 'Auto-generated campaign')
+
+            # Validate initialStepID exists
             initial_step_id = data.get('initialStepID')
             steps = data.get('steps', [])
 

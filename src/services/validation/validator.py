@@ -13,6 +13,7 @@ from src.models.flow_schema import CampaignFlow
 from src.services.validation.auto_corrector import AutoCorrector, get_auto_corrector
 from src.services.validation.flow_validator import FlowValidator, get_flow_validator
 from src.services.validation.schema_validator import SchemaValidator, get_schema_validator
+from src.services.validation.flowbuilder_schema import normalize_campaign_flow
 from src.utils.constants import LOG_CONTEXT_GENERATION_TIME, LOG_CONTEXT_TOKENS_USED
 
 logger = get_logger(__name__)
@@ -62,6 +63,7 @@ class ValidationSummary:
         self.validation_time_ms = validation_time_ms
         self.flow_data = flow_data
         self.issues = issues or []
+        self.quality_score = self._calculate_quality_score()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -74,8 +76,31 @@ class ValidationSummary:
             "corrections_applied": self.corrections_applied,
             "validation_time_ms": round(self.validation_time_ms, 2),
             "flow_complexity": self._assess_complexity(),
+            "quality_score": self.quality_score,
             "issues": [issue.to_dict() for issue in self.issues],
         }
+
+    def _calculate_quality_score(self) -> float:
+        """Calculate quality score based on validation results."""
+        # Start with a perfect score of 100
+        score = 100.0
+
+        # Deduct points for errors
+        score -= (self.error_count * 20)  # Each error deducts 20 points
+
+        # Deduct points for warnings
+        score -= (self.warning_count * 10)  # Each warning deducts 10 points
+
+        # Deduct points for info items
+        score -= (self.info_count * 5)  # Each info item deducts 5 points
+
+        # Bonus for corrections applied (shows the system fixed issues)
+        score += (self.corrections_applied * 5)  # Each correction adds 5 points
+
+        # Ensure score stays within bounds
+        score = max(0.0, min(100.0, score))
+
+        return round(score, 1)
 
     def _assess_complexity(self) -> str:
         """Assess flow complexity."""
@@ -165,6 +190,61 @@ class Validator:
                     "apply_corrections": apply_corrections if apply_corrections is not None else self.config.enable_auto_correction,
                 }
             )
+
+            # Step 0: FlowBuilder schema normalization
+            try:
+                flowbuilder_result = normalize_campaign_flow(corrected_data)
+                corrected_data = flowbuilder_result["flow"]
+
+                # Convert FlowBuilder validation issues to our format
+                fb_validation = flowbuilder_result["validation"]
+                for error in fb_validation["errors"]:
+                    all_issues.append(type('ValidationIssue', (), {
+                        'type': 'ERROR',
+                        'code': 'FLOWBUILDER_SCHEMA_ERROR',
+                        'message': error,
+                        'severity': 'high',
+                        'auto_correctable': False,
+                        'suggestion': None,
+                        'field_path': None,
+                        'actual_value': None,
+                        'expected_value': None
+                    })())
+
+                for warning in fb_validation["warnings"]:
+                    all_issues.append(type('ValidationIssue', (), {
+                        'type': 'WARNING',
+                        'code': 'FLOWBUILDER_SCHEMA_WARNING',
+                        'message': warning,
+                        'severity': 'low',
+                        'auto_correctable': False,
+                        'suggestion': None,
+                        'field_path': None,
+                        'actual_value': None,
+                        'expected_value': None
+                    })())
+
+                logger.info(
+                    "FlowBuilder schema normalization completed",
+                    extra={
+                        "fb_errors": fb_validation["error_count"],
+                        "fb_warnings": fb_validation["warning_count"],
+                        "fb_is_valid": fb_validation["is_valid"]
+                    }
+                )
+            except Exception as e:
+                logger.error(f"FlowBuilder schema normalization failed: {e}", exc_info=True)
+                all_issues.append(type('ValidationIssue', (), {
+                    'type': 'ERROR',
+                    'code': 'FLOWBUILDER_NORMALIZATION_FAILED',
+                    'message': f"FlowBuilder schema normalization failed: {str(e)}",
+                    'severity': 'high',
+                    'auto_correctable': False,
+                    'suggestion': None,
+                    'field_path': None,
+                    'actual_value': None,
+                    'expected_value': None
+                })())
 
             # Step 1: Schema validation
             if self.config.enable_schema_validation:
@@ -396,9 +476,40 @@ class Validator:
             # Skip schema validation since we already have a valid CampaignFlow object
             logger.info("Skipping schema validation for existing CampaignFlow object")
 
-            # Step 2: Skip flow validation for now due to model incompatibility
-            # The flow validator expects an 'events' field that doesn't exist in the CampaignFlow model
-            logger.info("Skipping flow validation due to model incompatibility")
+            # Step 2: Apply flow validation for reference integrity checking
+            # Convert CampaignFlow to dict format for flow validator compatibility
+            logger.info("Applying flow validation for reference integrity checks")
+
+            try:
+                # Apply flow validation using flow_validator (expects CampaignFlow object)
+                from .flow_validator import FlowValidator
+                flow_validator = FlowValidator()
+                flow_validation_result = flow_validator.validate(campaign_flow)
+
+                # Extract issues from flow validation
+                if hasattr(flow_validation_result, 'issues'):
+                    for issue in flow_validation_result.issues:
+                        all_issues.append(issue)
+                        if issue.severity == 'high':
+                            corrections_applied += 1  # Count as correction needed
+
+                logger.info(f"Flow validation completed: {len(flow_validation_result.issues)} issues found")
+
+            except Exception as flow_val_error:
+                logger.warning(f"Flow validation failed, continuing with schema validation: {flow_val_error}")
+                # Add a warning about flow validation failure
+                all_issues.append(type('ValidationIssue', (), {
+                    'code': 'FLOW_VALIDATION_SKIPPED',
+                    'message': f'Flow validation could not be completed: {flow_val_error}',
+                    'severity': 'warning',
+                    'node_id': None,
+                    'to_dict': lambda self: {
+                        'code': 'FLOW_VALIDATION_SKIPPED',
+                        'message': f'Flow validation could not be completed: {flow_val_error}',
+                        'severity': 'warning',
+                        'node_id': None
+                    }
+                })())
 
             # Add a simple warning about missing END node instead
             all_issues.append(type('ValidationIssue', (), {
@@ -414,8 +525,32 @@ class Validator:
                 }
             })())
 
-            # Step 3: Auto-correction (skipped for flow objects to avoid re-validation)
-            # Auto-correction is skipped for already-validated CampaignFlow objects
+            # Step 3: Auto-correction for reference integrity issues
+            if should_apply_corrections:
+                logger.info("Applying auto-correction for CampaignFlow object")
+                flow_data = campaign_flow.model_dump()
+
+                # Fix missing step references by setting them to None or creating missing steps
+                if 'steps' in flow_data:
+                    step_ids = {step.get('id') for step in flow_data['steps']}
+
+                    # Fix each step's events
+                    for step in flow_data['steps']:
+                        if 'events' in step and isinstance(step['events'], list):
+                            for event in step['events']:
+                                if 'nextStepID' in event and event['nextStepID']:
+                                    # If nextStepID doesn't exist in steps, set it to None to end the flow
+                                    if event['nextStepID'] not in step_ids:
+                                        logger.warning(f"Fixing invalid nextStepID reference: {event['nextStepID']} -> None")
+                                        event['nextStepID'] = None
+                                        corrections_applied += 1
+
+                    # Update corrected_data
+                    corrected_data = flow_data
+
+                    logger.info(f"Auto-correction applied: {corrections_applied} reference fixes")
+            else:
+                logger.info("Auto-correction disabled for CampaignFlow object")
 
             # Determine final validity
             is_valid = not any(issue.severity == "error" for issue in all_issues)
